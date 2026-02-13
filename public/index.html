@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="tr" style="color-scheme: dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#06080F">
+  <title>Meet Notetaker — Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Skip link -->
+  <a href="#joinSection" class="skip-link">Ana içeriğe geç</a>
+
+  <!-- Ambient background layers -->
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow bg-glow--1" aria-hidden="true"></div>
+  <div class="bg-glow bg-glow--2" aria-hidden="true"></div>
+  <div class="scanline" aria-hidden="true"></div>
+
+  <!-- Live region for async status announcements -->
+  <div class="sr-only" aria-live="polite" id="a11yAnnouncer"></div>
+
+  <!-- Visible toast notifications -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <main class="app" id="mainContent">
+
+    <!-- ─── Top Bar ─── -->
+    <header class="topbar">
+      <div class="topbar__left">
+        <div class="topbar__logo">
+          <div class="topbar__logo-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="12" cy="12" r="4" fill="currentColor"/>
+              <line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div>
+            <h1 class="topbar__title">MEET NOTETAKER</h1>
+            <span class="topbar__subtitle">Mission Control v1.0</span>
+          </div>
+        </div>
+      </div>
+      <div class="topbar__right">
+        <div class="topbar__clock" id="clock">00:00:00</div>
+        <div class="topbar__connection" id="connectionBadge">
+          <span class="conn-dot"></span>
+          <span class="conn-text">OFFLINE</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ─── Join Panel ─── -->
+    <section class="panel panel--join" id="joinSection">
+      <div class="panel__header">
+        <span class="panel__tag">SYS.INPUT</span>
+        <h2 class="panel__title">Toplantı Bağlantısı</h2>
+      </div>
+      <form id="joinForm" class="join-form" autocomplete="off">
+        <label for="meetLink" class="sr-only">Google Meet bağlantısı</label>
+        <div class="join-form__input-wrap">
+          <span class="join-form__prefix" aria-hidden="true">LINK://</span>
+          <input
+            type="text"
+            id="meetLink"
+            name="meetLink"
+            class="join-form__input"
+            placeholder="meet.google.com/xxx-xxxx-xxx…"
+            required
+            spellcheck="false"
+            autocomplete="off"
+          />
+        </div>
+        <div class="join-form__error hidden" id="joinError" role="alert"></div>
+        <button type="submit" id="joinBtn" class="btn btn--launch">
+          <svg class="btn__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 13L13 3M13 3H5M13 3V11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>BAŞLAT</span>
+        </button>
+      </form>
+    </section>
+
+    <!-- ─── Telemetry Dashboard ─── -->
+    <section class="panel panel--telemetry hidden" id="statusSection">
+      <div class="panel__header">
+        <span class="panel__tag">TELEMETRY</span>
+        <h2 class="panel__title">Oturum Verileri</h2>
+      </div>
+      <div class="telemetry">
+        <div class="telem-card">
+          <div class="telem-card__label">DURUM</div>
+          <div class="telem-card__value" id="statusText">
+            <span class="status-dot"></span>
+            <span>—</span>
+          </div>
+        </div>
+        <div class="telem-card">
+          <div class="telem-card__label">KATILIMCI</div>
+          <div class="telem-card__value telem-card__value--mono" id="participantCount">0</div>
+        </div>
+        <div class="telem-card">
+          <div class="telem-card__label">TRANSKRIPT</div>
+          <div class="telem-card__value telem-card__value--mono" id="captionCount">0</div>
+        </div>
+        <div class="telem-card">
+          <div class="telem-card__label">SÜRE</div>
+          <div class="telem-card__value telem-card__value--mono" id="duration">00:00</div>
+        </div>
+      </div>
+      <!-- ─── Language Selector ─── -->
+      <div class="lang-selector" id="langSelector">
+        <div class="lang-selector__header">
+          <span class="lang-selector__label">ALTYAZI DİLİ</span>
+          <button id="fetchLangsBtn" class="btn btn--ghost btn--sm" aria-label="Dilleri yükle">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M6 1V3M6 9V11M1 6H3M9 6H11M2.05 2.05L3.46 3.46M8.54 8.54L9.95 9.95M2.05 9.95L3.46 8.54M8.54 3.46L9.95 2.05" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            YENİLE
+          </button>
+        </div>
+        <div class="lang-selector__current" id="currentLang">
+          <span class="lang-selector__current-label">Aktif:</span>
+          <span class="lang-selector__current-value" id="currentLangValue">—</span>
+        </div>
+        <div class="lang-selector__search-wrap hidden" id="langSearchWrap">
+          <svg class="lang-selector__search-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M8 8L11 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          <input type="text" id="langSearch" class="lang-selector__search" placeholder="Dil ara…" spellcheck="false" autocomplete="off" />
+        </div>
+        <div class="lang-selector__list hidden" id="langList" role="listbox" aria-label="Dil seçenekleri"></div>
+      </div>
+
+      <div class="panel__actions">
+        <button id="leaveBtn" class="btn btn--abort" aria-label="Toplantıdan ayrıl">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          SONLANDIR
+        </button>
+        <button id="summarizeBtn" class="btn btn--primary" aria-label="AI ile toplantı özeti oluştur">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M7 1V13M1 7H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          AI ÖZET OLUŞTUR
+        </button>
+      </div>
+    </section>
+
+    <!-- ─── Live Feed ─── -->
+    <section class="panel panel--feed hidden" id="transcriptSection">
+      <div class="panel__header">
+        <div class="panel__header-left">
+          <span class="panel__tag">LIVE.FEED</span>
+          <h2 class="panel__title">Canlı Transkript</h2>
+        </div>
+        <div class="live-indicator" id="liveIndicator">
+          <span class="live-indicator__dot"></span>
+          <span class="live-indicator__text">CANLI</span>
+        </div>
+      </div>
+      <div class="feed" id="transcript" role="log" aria-label="Canlı transkript" aria-live="polite">
+        <div class="feed__empty">
+          <span class="feed__empty-icon" aria-hidden="true">◉</span>
+          Konuşma bekleniyor…
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── AI Summary ─── -->
+    <section class="panel panel--summary hidden" id="summarySection">
+      <div class="panel__header">
+        <span class="panel__tag">AI.ANALYSIS</span>
+        <h2 class="panel__title">Toplantı Özeti</h2>
+      </div>
+      <div id="summaryContent"></div>
+    </section>
+
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
