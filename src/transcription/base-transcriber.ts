@@ -15,6 +15,11 @@ export abstract class BaseTranscriber extends EventEmitter {
   protected active = false;
   protected entries: TranscriptEntry[] = [];
 
+  /** Navigate öncesi erken setup (isteğe bağlı) */
+  async prepare(page: Page): Promise<void> {
+    void page; // no-op by default
+  }
+
   abstract start(page: Page): Promise<void>;
   abstract stop(): Promise<void>;
 

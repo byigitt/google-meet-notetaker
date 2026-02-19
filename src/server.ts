@@ -38,10 +38,11 @@ export function createApp(config: AppConfig) {
     console.log(`📥 Yeni katılma isteği: ${meetLink}`);
 
     try {
-      const transcriber = createTranscriber(
-        config.transcriptionStrategy,
-        config.deepgramApiKey,
-      );
+      const transcriber = createTranscriber(config.transcriptionStrategy, {
+        openaiApiKey: config.openaiApiKey,
+        openaiBaseUrl: config.openaiBaseUrl,
+        deepgramApiKey: config.deepgramApiKey,
+      });
 
       const bot = new MeetBot(meetLink, config.botName, config.captionLanguage, transcriber);
       activeBots.set(bot.session.id, bot);
