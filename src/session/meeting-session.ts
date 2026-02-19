@@ -1,13 +1,8 @@
-// ─── Meeting Session ─────────────────────────────────────
-// SRP: Tek sorumluluk → toplantı oturumu state yönetimi
-// ─────────────────────────────────────────────────────────
-
 import { v4 as uuidv4 } from 'uuid';
-import { MeetingResult, MeetingStatus, TranscriptEntry } from '../types';
+import { MeetingResult, MeetingStatus, TranscriptEntry, TranscriptSource } from '../types';
 
 export class MeetingSession {
-  readonly id: string;
-  readonly meetLink: string;
+  readonly id = uuidv4();
 
   private _status: MeetingStatus = 'joining';
   private _startTime?: Date;
@@ -16,30 +11,26 @@ export class MeetingSession {
   private _participants = new Set<string>();
   private _error?: string;
 
-  constructor(meetLink: string) {
-    this.id = uuidv4();
-    this.meetLink = meetLink;
-  }
+  constructor(readonly meetLink: string) {}
 
-  // ── Getters ──
-
-  get status() { return this._status; }
-  get startTime() { return this._startTime; }
-  get transcript() { return [...this._transcript]; }
-  get participants() { return [...this._participants]; }
-  get participantCount() { return this._participants.size; }
-  get transcriptCount() { return this._transcript.length; }
+  get status(): MeetingStatus { return this._status; }
+  get startTime(): Date | undefined { return this._startTime; }
+  get transcript(): TranscriptEntry[] { return [...this._transcript]; }
+  get participants(): string[] { return [...this._participants]; }
+  get participantCount(): number { return this._participants.size; }
+  get transcriptCount(): number { return this._transcript.filter(e => e.source !== 'whisper').length; }
 
   get duration(): string | undefined {
     if (!this._startTime) return undefined;
-    const end = this._endTime ?? new Date();
-    const diffMs = end.getTime() - this._startTime.getTime();
+    const diffMs = (this._endTime ?? new Date()).getTime() - this._startTime.getTime();
     const mins = Math.floor(diffMs / 60000);
     const secs = Math.floor((diffMs % 60000) / 1000);
     return `${mins}dk ${secs}sn`;
   }
 
-  // ── Mutators ──
+  transcriptBySource(source: TranscriptSource): TranscriptEntry[] {
+    return this._transcript.filter(e => e.source === source);
+  }
 
   setStatus(status: MeetingStatus): void {
     this._status = status;
@@ -65,13 +56,10 @@ export class MeetingSession {
   }
 
   updateTranscriptEntry(index: number, text: string): void {
-    if (index >= 0 && index < this._transcript.length) {
-      this._transcript[index].text = text;
-      this._transcript[index].endTime = new Date();
-    }
+    if (index < 0 || index >= this._transcript.length) return;
+    this._transcript[index].text = text;
+    this._transcript[index].endTime = new Date();
   }
-
-  // ── Snapshot ──
 
   toResult(): MeetingResult {
     return {
@@ -84,12 +72,5 @@ export class MeetingSession {
       transcript: this.transcript,
       error: this._error,
     };
-  }
-
-  /** Transkripti düz metin olarak formatla */
-  formatTranscript(): string {
-    return this._transcript
-      .map(e => `[${e.startTime.toLocaleTimeString('tr-TR')}] ${e.speaker}: ${e.text}`)
-      .join('\n');
   }
 }

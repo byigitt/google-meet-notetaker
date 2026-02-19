@@ -1,7 +1,5 @@
-// ─── Caption Transcriber ─────────────────────────────────
-// SRP: Tek sorumluluk → Google Meet altyazılarını scrape et
-// Strategy: BaseTranscriber'ın "captions" implementasyonu
-// ─────────────────────────────────────────────────────────
+// Scrapes Google Meet's live caption DOM for transcript entries.
+// Uses both MutationObserver (primary) and polling (fallback).
 
 import type { Page } from 'patchright';
 import { BaseTranscriber } from './base-transcriber';
@@ -14,7 +12,6 @@ export class CaptionTranscriber extends BaseTranscriber {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private lastSpeakerText = new Map<string, { text: string; index: number }>();
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  /** Son görülen text — debounce'dan bağımsız, polling duplicate'lerini engeller */
   private lastSeenText = new Map<string, string>();
 
   async start(page: Page): Promise<void> {
@@ -45,18 +42,6 @@ export class CaptionTranscriber extends BaseTranscriber {
     this.lastSpeakerText.clear();
     log(M, 'transcriber stopped');
   }
-
-  // ── Altyazı observer'ı enjekte et ──
-  //
-  // Google Meet caption DOM yapısı:
-  //   <div role="region" aria-label="Captions" jscontroller="KPn5nb">
-  //     <div class="nMcdL ...">                     ← caption entry
-  //       <div class="adE6rb">                      ← speaker satırı
-  //         <span class="NWpY1d">Speaker Name</span>
-  //       </div>
-  //       <div class="ygicle VbkSUe">caption text</div>  ← metin
-  //     </div>
-  //   </div>
 
   private async injectCaptionObserver(page: Page): Promise<void> {
     await page.evaluate(`(function() {
@@ -146,7 +131,7 @@ export class CaptionTranscriber extends BaseTranscriber {
     })()`);
   }
 
-  // ── Polling (yedek mekanizma) ──
+
 
   private startPolling(page: Page): void {
     let pollCount = 0;
@@ -190,7 +175,7 @@ export class CaptionTranscriber extends BaseTranscriber {
     }, 1500);
   }
 
-  // ── Caption işleme ──
+
 
   private handleCaption(speaker: string, text: string): void {
     // Tam aynı text → atla (polling duplicate koruması)

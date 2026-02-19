@@ -1,11 +1,16 @@
-// ─── Browser Manager ─────────────────────────────────────
-// SRP: Tek sorumluluk → Chrome tarayıcı yaşam döngüsü
-// ─────────────────────────────────────────────────────────
-
 import { chromium, type Browser, type BrowserContext, type Page } from 'patchright';
 import { log } from '../logger';
 
 const M = 'browser';
+
+const CHROME_ARGS = [
+  '--disable-blink-features=AutomationControlled',
+  '--use-fake-ui-for-media-stream',
+  '--autoplay-policy=no-user-gesture-required',
+  '--disable-notifications',
+  '--no-first-run',
+  '--no-default-browser-check',
+];
 
 export class BrowserManager {
   private browser: Browser | null = null;
@@ -17,27 +22,17 @@ export class BrowserManager {
     this.browser = await chromium.launch({
       channel: 'chrome',
       headless: false,
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--use-fake-ui-for-media-stream',
-        '--use-fake-device-for-media-stream',
-        '--autoplay-policy=no-user-gesture-required',
-        '--disable-notifications',
-        '--no-first-run',
-        '--no-default-browser-check',
-      ],
+      args: CHROME_ARGS,
     });
-    log(M, 'browser open');
 
     this.context = await this.browser.newContext({
       permissions: ['camera', 'microphone'],
       viewport: null,
       ignoreHTTPSErrors: true,
     });
-    log(M, 'context ready');
 
     const page = await this.context.newPage();
-    log(M, 'page ready');
+    log(M, 'browser ready');
     return page;
   }
 

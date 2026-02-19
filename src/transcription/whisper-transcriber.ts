@@ -1,11 +1,11 @@
-// ─── Whisper Transcriber ─────────────────────────────────
-// Toplantı sesini kaydeder, sonunda Whisper API ile transkript alır.
-// Strategy: BaseTranscriber'ın "whisper" implementasyonu
-// ─────────────────────────────────────────────────────────
+// Whisper Transcriber — patches RTCPeerConnection & HTMLMediaElement to
+// capture incoming audio tracks, records via MediaRecorder, then sends
+// the resulting file to Whisper API for transcription.
 
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { spawn, execSync } from 'child_process';
 import OpenAI from 'openai';
 import type { Page } from 'patchright';
 import { BaseTranscriber } from './base-transcriber';
@@ -14,189 +14,270 @@ import { log, warn, error, debug } from '../logger';
 
 const M = 'whisper';
 
-// RTCPeerConnection'ı intercept ederek remote audio track'leri yakala.
-// Bu kod page.addInitScript() ile enjekte edilir — Meet JS'den önce çalışır.
-const INIT_SCRIPT = `(function () {
-  if (window.__whisperSetup) return;
-  window.__whisperSetup = true;
+const INIT_SCRIPT = `(function() {
+  if (window.__whisperInitDone) return;
+  window.__whisperInitDone = true;
+  window.__whisperCapture = { tracks: [] };
 
-  var AudioCtx = window.AudioContext || window.webkitAudioContext;
-  var audioCtx = new AudioCtx();
-  var dest = audioCtx.createMediaStreamDestination();
-  var connectedIds = new Set();
-
-  window.__whisperAudioDest = dest;
-  window.__whisperAudioCtx  = audioCtx;
-
-  function connectTrack(track) {
-    if (connectedIds.has(track.id)) return;
-    connectedIds.add(track.id);
-    try {
-      var stream = new MediaStream([track]);
-      var src    = audioCtx.createMediaStreamSource(stream);
-      src.connect(dest); // yönlendiriyoruz ama play etmiyoruz (Meet zaten çalıyor)
-    } catch (e) {
-      console.warn('[whisper-init] track connect error:', e);
+  /* RTCPeerConnection — gelen audio track'leri yakala */
+  var _OrigPC = window.RTCPeerConnection;
+  if (_OrigPC) {
+    function PatchedPC() {
+      var pc = new (Function.prototype.bind.apply(_OrigPC, [null].concat(Array.prototype.slice.call(arguments))))();
+      pc.addEventListener('track', function(e) {
+        if (e.track.kind !== 'audio') return;
+        window.__whisperCapture.tracks.push(e.track);
+        console.log('[whisper-init] RTC audio track captured, total=' + window.__whisperCapture.tracks.length);
+      });
+      return pc;
     }
+    try {
+      PatchedPC.prototype = _OrigPC.prototype;
+      Object.setPrototypeOf(PatchedPC, _OrigPC);
+    } catch(e) {}
+    window.RTCPeerConnection = PatchedPC;
   }
 
-  // RTCPeerConnection'ı wrap et
-  var OrigPC = window.RTCPeerConnection;
-  window.RTCPeerConnection = function () {
-    var pc = new OrigPC(...arguments);
-    pc.addEventListener('track', function (e) {
-      if (e.track.kind === 'audio') connectTrack(e.track);
+  /* HTMLMediaElement.srcObject — media element stream'leri yakala */
+  var _desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'srcObject');
+  if (_desc && _desc.set) {
+    Object.defineProperty(HTMLMediaElement.prototype, 'srcObject', {
+      set: function(val) {
+        if (val instanceof MediaStream) {
+          val.getAudioTracks().forEach(function(t) {
+            if (window.__whisperCapture.tracks.indexOf(t) === -1) {
+              window.__whisperCapture.tracks.push(t);
+              console.log('[whisper-init] MediaElement audio track captured, total=' + window.__whisperCapture.tracks.length);
+            }
+          });
+        }
+        _desc.set.call(this, val);
+      },
+      get: _desc.get,
+      configurable: true,
     });
-    return pc;
-  };
-  window.RTCPeerConnection.prototype = OrigPC.prototype;
-  Object.setPrototypeOf(window.RTCPeerConnection, OrigPC);
-
-  // Var olan <audio>/<video> elementlerini de yakala (fallback)
-  function captureElement(el) {
-    if (el.__whisperCaptured) return;
-    el.__whisperCaptured = true;
-    try {
-      var src = audioCtx.createMediaElementSource(el);
-      src.connect(dest);
-      src.connect(audioCtx.destination); // sesi kesmemek için
-    } catch (e) {}
   }
-  document.querySelectorAll('audio, video').forEach(captureElement);
-  new MutationObserver(function () {
-    document.querySelectorAll('audio, video').forEach(captureElement);
-  }).observe(document.body, { childList: true, subtree: true });
+
+  console.log('[whisper-init] interceptors installed');
 })();`;
 
-// MediaRecorder'ı başlatan ve chunk'ları Node'a ileten kod.
-const START_RECORDER = `(function () {
-  var dest = window.__whisperAudioDest;
-  if (!dest) { console.error('[whisper] no audio dest — init script did not run'); return; }
+const START_RECORDER = `(async function() {
+  try {
+    var capture = window.__whisperCapture;
+    if (!capture) return 'no-capture';
 
-  var mimeTypes = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
-    'audio/ogg;codecs=opus',
-    'audio/ogg',
-  ];
-  var mimeType = '';
-  for (var i = 0; i < mimeTypes.length; i++) {
-    if (MediaRecorder.isTypeSupported(mimeTypes[i])) { mimeType = mimeTypes[i]; break; }
-  }
+    var ctx = new AudioContext({ sampleRate: 48000 });
+    await ctx.resume();
+    var dest = ctx.createMediaStreamDestination();
+    var connected = 0;
 
-  var opts = mimeType ? { mimeType: mimeType } : {};
-  var recorder = new MediaRecorder(dest.stream, opts);
-
-  recorder.ondataavailable = async function (e) {
-    if (!e.data || e.data.size === 0) return;
-    try {
-      var buf   = await e.data.arrayBuffer();
-      var bytes = new Uint8Array(buf);
-      var b64   = '';
-      var CHUNK = 8192;
-      for (var i = 0; i < bytes.length; i += CHUNK) {
-        b64 += String.fromCharCode.apply(null, bytes.slice(i, i + CHUNK));
+    // 1) Intercepted tracks
+    for (var i = 0; i < capture.tracks.length; i++) {
+      var track = capture.tracks[i];
+      try {
+        if (track.readyState === 'ended') continue;
+        var src = ctx.createMediaStreamSource(new MediaStream([track]));
+        src.connect(dest);
+        connected++;
+      } catch(e) {
+        console.warn('[whisper] track connect failed:', e.message);
       }
-      window.__onAudioChunk(btoa(b64));
-    } catch (err) {
-      console.error('[whisper] chunk encode error:', err);
     }
-  };
 
-  recorder.onerror = function (e) {
-    console.error('[whisper] recorder error:', e.error);
-  };
+    // 2) Audio/video element fallback
+    document.querySelectorAll('audio, video').forEach(function(el) {
+      try {
+        if (!el.srcObject) return;
+        el.srcObject.getAudioTracks().forEach(function(t) {
+          if (t.readyState === 'ended') return;
+          if (capture.tracks.indexOf(t) !== -1) return; // skip duplicates
+          var s = ctx.createMediaStreamSource(new MediaStream([t]));
+          s.connect(dest);
+          connected++;
+        });
+      } catch(e) {}
+    });
 
-  recorder.start(3000); // 3 saniyelik parçalar
-  window.__whisperRecorder = recorder;
-  console.log('[whisper] recording started, mimeType=' + recorder.mimeType);
-})();`;
+    console.log('[whisper-info] sources connected=' + connected);
+    if (connected === 0) return 'no-sources';
+
+    var mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus' : 'audio/webm';
+
+    var recorder = new MediaRecorder(dest.stream, mimeType ? { mimeType: mimeType } : {});
+
+    recorder.ondataavailable = async function(e) {
+      if (!e.data || e.data.size === 0) return;
+      try {
+        var buf = await e.data.arrayBuffer();
+        var bytes = new Uint8Array(buf);
+        var b64 = '';
+        var CHUNK = 8192;
+        for (var n = 0; n < bytes.length; n += CHUNK) {
+          b64 += String.fromCharCode.apply(null, bytes.slice(n, n + CHUNK));
+        }
+        window.__onAudioChunk(btoa(b64));
+      } catch(err) {}
+    };
+
+    recorder.start(3000);
+    window.__whisperRecorder = recorder;
+    return 'ok:' + connected;
+  } catch(e) {
+    return 'error:' + e.message;
+  }
+})()`;
+
+function findFfmpeg(): string | null {
+  try {
+    const cmd = process.platform === 'win32' ? 'where ffmpeg' : 'which ffmpeg';
+    return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .trim().split('\n')[0].trim() || null;
+  } catch { return null; }
+}
+
+async function convertToWav(input: string, output: string, ffmpegBin: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ffmpegBin,
+      ['-y', '-i', input, '-map', '0:a:0', '-c:a', 'pcm_s16le', '-ar', '16000', '-ac', '1', output],
+      { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+    proc.on('close', code => code === 0 ? resolve() : reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-200)}`)));
+    proc.on('error', reject);
+  });
+}
 
 export class WhisperTranscriber extends BaseTranscriber {
   private openai: OpenAI;
   private audioChunks: Buffer[] = [];
-  private tmpFile: string;
-  private recordingStarted = false;
+  private webmFile: string;
+  private page: Page | null = null;
+  private stopped = false;
 
   constructor(openaiApiKey: string, baseURL?: string) {
     super();
     this.openai = new OpenAI({ apiKey: openaiApiKey, ...(baseURL ? { baseURL } : {}) });
-    this.tmpFile = path.join(os.tmpdir(), `meet-audio-${Date.now()}.webm`);
+
+    const keep = process.env.WHISPER_KEEP_AUDIO === 'true';
+    const dir  = keep ? path.resolve(process.cwd(), 'recordings') : os.tmpdir();
+    if (keep) fs.mkdirSync(dir, { recursive: true });
+    this.webmFile = path.join(dir, `meet-audio-${Date.now()}.webm`);
   }
 
-  // ── Erken setup: navigate edilmeden önce çağrılmalı ──
+  override get needsCaptions(): boolean { return false; }
 
   async prepare(page: Page): Promise<void> {
-    // Chunk'ları Node.js'e iletecek fonksiyonu expose et
+    this.page = page;
+
+    page.on('console', msg => {
+      const text = msg.text();
+      if (!text.includes('[whisper')) return;
+      if (text.startsWith('[whisper-info]')) {
+        log(M, text.replace(/^\[whisper-info\]\s*/, ''));
+      } else if (msg.type() === 'error' || msg.type() === 'warning') {
+        warn(M, `[browser] ${text}`);
+      } else {
+        debug(M, `[browser] ${text}`);
+      }
+    });
+
     try {
       await page.exposeFunction('__onAudioChunk', (base64: string) => {
         const buf = Buffer.from(base64, 'base64');
         this.audioChunks.push(buf);
-        debug(M, `chunk received: ${buf.length} bytes (total ${this.totalBytes()} bytes)`);
+        debug(M, `chunk #${this.audioChunks.length}: ${buf.length} bytes (total ${Math.round(this.totalBytes() / 1024)} KB)`);
       });
-    } catch { /* zaten expose edilmiş */ }
+    } catch { /* already exposed */ }
 
-    // RTCPeerConnection interceptor'ı her sayfa yükünde çalışacak şekilde ekle
     await page.addInitScript(INIT_SCRIPT);
-
-    log(M, 'rtcpeerconnection interceptor registered');
+    log(M, 'interceptors installed (RTC + MediaElement)');
   }
-
-  // ── Kayıt başlat: toplantıya katıldıktan sonra çağrılmalı ──
 
   async start(page: Page): Promise<void> {
+    this.page = page;
     this.active = true;
-    await page.evaluate(START_RECORDER);
-    this.recordingStarted = true;
-    log(M, 'audio recording started');
+    this.stopped = false;
+
+    log(M, 'starting audio recorder...');
+    const result = await page.evaluate(START_RECORDER).catch(e => `error:${e.message}`);
+    const resultStr = String(result);
+
+    if (resultStr.startsWith('ok:')) {
+      log(M, `audio recording started (${resultStr.split(':')[1]} sources)`);
+    } else {
+      warn(M, `recorder issue: ${resultStr}`);
+    }
   }
 
-  // ── Kayıt durdur → Whisper'a gönder ──
-
   async stop(): Promise<void> {
+    if (this.stopped) return;
+    this.stopped = true;
     this.active = false;
 
-    if (this.recordingStarted) {
+    if (this.page) {
       try {
-        // Recorder'ı durdur ve son chunk'ı bekle
-        await (this as any)._page?.evaluate?.(`
-          if (window.__whisperRecorder && window.__whisperRecorder.state !== 'inactive') {
-            window.__whisperRecorder.stop();
-          }
-        `).catch(() => {});
-        await new Promise(r => setTimeout(r, 1500));
-      } catch { /* page kapanmış olabilir */ }
+        await this.page.evaluate(`(function() {
+          var r = window.__whisperRecorder;
+          if (!r) return;
+          if (r.state === 'recording') r.requestData();
+          setTimeout(function() { if (r.state !== 'inactive') r.stop(); }, 500);
+        })()`).catch(() => {});
+        await new Promise(r => setTimeout(r, 2000));
+      } catch { /* page closed */ }
     }
 
-    log(M, `recording stopped — ${this.audioChunks.length} chunks, ${Math.round(this.totalBytes() / 1024)} KB`);
+    const sizeKB = Math.round(this.totalBytes() / 1024);
+    log(M, `recording stopped — ${this.audioChunks.length} chunks, ${sizeKB} KB`);
 
-    if (this.audioChunks.length === 0) {
-      warn(M, 'no audio data collected — skipping transcription');
+    if (this.audioChunks.length === 0 || this.totalBytes() < 1000) {
+      warn(M, 'no audio data — skipping transcription');
       return;
     }
 
-    await this.transcribeWithWhisper();
+    await this.processAndTranscribe();
   }
-
-  // ── Helpers ──
 
   private totalBytes(): number {
     return this.audioChunks.reduce((acc, b) => acc + b.length, 0);
   }
 
-  private async transcribeWithWhisper(): Promise<void> {
-    const audioBuffer = Buffer.concat(this.audioChunks);
-    log(M, `writing audio file: ${this.tmpFile} (${Math.round(audioBuffer.length / 1024)} KB)`);
+  private async processAndTranscribe(): Promise<void> {
+    const raw = Buffer.concat(this.audioChunks);
+    log(M, `writing raw webm: ${Math.round(raw.length / 1024)} KB → ${this.webmFile}`);
+    await fs.promises.writeFile(this.webmFile, raw);
 
-    await fs.promises.writeFile(this.tmpFile, audioBuffer);
+    const ffmpegBin = findFfmpeg();
+    let audioFile = this.webmFile;
 
+    if (ffmpegBin) {
+      const wavFile = this.webmFile.replace('.webm', '.wav');
+      try {
+        await convertToWav(this.webmFile, wavFile, ffmpegBin);
+        const kb = Math.round((await fs.promises.stat(wavFile)).size / 1024);
+        log(M, `converted to clean WAV: ${kb} KB`);
+        audioFile = wavFile;
+        if (process.env.WHISPER_KEEP_AUDIO !== 'true') {
+          await fs.promises.unlink(this.webmFile).catch(() => {});
+        }
+      } catch (err: any) {
+        warn(M, `ffmpeg conversion failed: ${err.message} — using raw webm`);
+      }
+    } else {
+      warn(M, 'ffmpeg not found — sending raw webm');
+    }
+
+    await this.transcribeFile(audioFile);
+  }
+
+  private async transcribeFile(audioFile: string): Promise<void> {
+    const model = process.env.WHISPER_MODEL ?? 'whisper-large-v3';
     try {
-      log(M, 'sending to whisper api...');
-
+      log(M, `sending to ${model} (${path.basename(audioFile)})...`);
       const response = await this.openai.audio.transcriptions.create({
-        file: fs.createReadStream(this.tmpFile) as any,
-        model: process.env.WHISPER_MODEL ?? 'whisper-1',
-        response_format: 'verbose_json',
+        file:                    fs.createReadStream(audioFile) as any,
+        model,
+        response_format:         'verbose_json',
         timestamp_granularities: ['segment'],
       });
 
@@ -205,31 +286,28 @@ export class WhisperTranscriber extends BaseTranscriber {
 
       if (segments.length > 0) {
         const meetingStart = Date.now() - (segments.at(-1)?.end ?? 0) * 1000;
-
         for (const seg of segments) {
-          const startTime = new Date(meetingStart + seg.start * 1000);
-          const endTime   = new Date(meetingStart + seg.end   * 1000);
-          const text      = (seg.text ?? '').trim();
-          if (text) {
-            const entry: TranscriptEntry = { speaker: 'Whisper', text, startTime, endTime };
-            this.addEntry(entry);
-          }
+          const text = (seg.text ?? '').trim();
+          if (!text) continue;
+          this.addEntry({
+            speaker:   'Whisper',
+            text,
+            startTime: new Date(meetingStart + seg.start * 1000),
+            endTime:   new Date(meetingStart + seg.end * 1000),
+          });
         }
       } else if (response.text?.trim()) {
         const now = new Date();
-        const entry: TranscriptEntry = {
-          speaker: 'Whisper',
-          text: response.text.trim(),
-          startTime: now,
-          endTime: now,
-        };
-        this.addEntry(entry);
+        this.addEntry({ speaker: 'Whisper', text: response.text.trim(), startTime: now, endTime: now });
       }
-
     } catch (err: any) {
-      error(M, `whisper api error: ${err.message}`);
+      error(M, `api error: ${err.message}`);
     } finally {
-      await fs.promises.unlink(this.tmpFile).catch(() => {});
+      if (process.env.WHISPER_KEEP_AUDIO === 'true') {
+        log(M, `files kept in: ${path.dirname(audioFile)}`);
+      } else {
+        await fs.promises.unlink(audioFile).catch(() => {});
+      }
     }
   }
 }

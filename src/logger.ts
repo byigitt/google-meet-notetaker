@@ -1,17 +1,13 @@
-// ─── Logger ───────────────────────────────────────────────
-// Oldschool format: HH:MM:SS [LEVEL] [module] message
-// ─────────────────────────────────────────────────────────
-
 function ts(): string {
   return new Date().toTimeString().slice(0, 8);
 }
 
 export function log(module: string, message: string): void {
-  console.log(`${ts()} [INFO ] [${module}] ${message}`);
+  console.log(`${ts()} [INFO] [${module}] ${message}`);
 }
 
 export function warn(module: string, message: string): void {
-  console.warn(`${ts()} [WARN ] [${module}] ${message}`);
+  console.warn(`${ts()} [WARN] [${module}] ${message}`);
 }
 
 export function error(module: string, message: string): void {

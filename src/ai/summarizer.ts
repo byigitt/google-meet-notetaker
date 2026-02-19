@@ -1,7 +1,3 @@
-// ─── AI Summarizer ───────────────────────────────────────
-// SRP: Tek sorumluluk → transkripti AI ile özetle
-// ─────────────────────────────────────────────────────────
-
 import OpenAI from 'openai';
 import { MeetingSummary, TranscriptEntry } from '../types';
 import { log, warn } from '../logger';
@@ -20,7 +16,30 @@ Aşağıdaki formatta bir JSON döndür (başka hiçbir şey yazma):
 Kurallar:
 - Türkçe yaz
 - Sadece JSON döndür, markdown veya açıklama ekleme
-- Transkriptte geçen gerçek bilgileri kullan, uydurmaMake`;
+- Transkriptte geçen gerçek bilgileri kullan, uydurma`;
+
+function formatEntries(entries: TranscriptEntry[]): string {
+  return entries
+    .map(e => `[${e.startTime.toLocaleTimeString('tr-TR')}] ${e.speaker}: ${e.text}`)
+    .join('\n');
+}
+
+function makeSummary(
+  parsed: Partial<MeetingSummary>,
+  participants: string[],
+  duration?: string,
+): MeetingSummary {
+  return {
+    title:       parsed.title ?? 'Toplantı',
+    date:        new Date().toLocaleDateString('tr-TR'),
+    duration:    duration ?? 'Bilinmiyor',
+    participants,
+    summary:     parsed.summary ?? '',
+    keyPoints:   parsed.keyPoints ?? [],
+    actionItems: parsed.actionItems ?? [],
+    decisions:   parsed.decisions ?? [],
+  };
+}
 
 export class Summarizer {
   private client: OpenAI;
@@ -35,22 +54,23 @@ export class Summarizer {
     duration?: string,
   ): Promise<MeetingSummary> {
     if (transcript.length === 0) {
-      return this.emptySummary(participants, duration);
+      return makeSummary(
+        { summary: 'Transkript bulunamadı. Toplantıda altyazılar açık olmayabilir.' },
+        participants,
+        duration,
+      );
     }
-
-    const formattedTranscript = transcript
-      .map(e => `[${e.startTime.toLocaleTimeString('tr-TR')}] ${e.speaker}: ${e.text}`)
-      .join('\n');
 
     const userPrompt = [
       `Katılımcılar: ${participants.join(', ')}`,
       duration ? `Süre: ${duration}` : '',
       '',
       '--- TRANSKRİPT ---',
-      formattedTranscript,
+      formatEntries(transcript),
     ].filter(Boolean).join('\n');
 
     log(M, `sending ${transcript.length} entries to gpt-4o-mini...`);
+
     const response = await this.client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -64,45 +84,11 @@ export class Summarizer {
     const content = response.choices[0]?.message?.content?.trim() ?? '{}';
 
     try {
-      // JSON bloğu varsa çıkar
       const jsonStr = content.replace(/^```json?\n?/, '').replace(/\n?```$/, '');
-      const parsed = JSON.parse(jsonStr);
-
-      return {
-        title: parsed.title ?? 'Toplantı',
-        date: new Date().toLocaleDateString('tr-TR'),
-        duration: duration ?? 'Bilinmiyor',
-        participants,
-        summary: parsed.summary ?? '',
-        keyPoints: parsed.keyPoints ?? [],
-        actionItems: parsed.actionItems ?? [],
-        decisions: parsed.decisions ?? [],
-      };
+      return makeSummary(JSON.parse(jsonStr), participants, duration);
     } catch {
       warn(M, 'json parse failed, using raw text');
-      return {
-        title: 'Toplantı',
-        date: new Date().toLocaleDateString('tr-TR'),
-        duration: duration ?? 'Bilinmiyor',
-        participants,
-        summary: content,
-        keyPoints: [],
-        actionItems: [],
-        decisions: [],
-      };
+      return makeSummary({ summary: content }, participants, duration);
     }
-  }
-
-  private emptySummary(participants: string[], duration?: string): MeetingSummary {
-    return {
-      title: 'Toplantı',
-      date: new Date().toLocaleDateString('tr-TR'),
-      duration: duration ?? 'Bilinmiyor',
-      participants,
-      summary: 'Transkript bulunamadı. Toplantıda altyazılar açık olmayabilir.',
-      keyPoints: [],
-      actionItems: [],
-      decisions: [],
-    };
   }
 }

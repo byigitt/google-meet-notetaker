@@ -1,14 +1,9 @@
-// ─── Page Actions ────────────────────────────────────────
-// SRP: Tek sorumluluk → Patchright sayfa etkileşimleri
-// DRY: Tekrar eden selector/click/wait pattern'ları
-// ─────────────────────────────────────────────────────────
-
 import type { Page } from 'patchright';
 import { log } from '../logger';
 
 const M = 'page-actions';
 
-/** Birden fazla selector dener, ilk bulunanı tıklar */
+/** Try multiple selectors, click the first visible one */
 export async function clickFirstMatch(page: Page, selectors: string[], label: string): Promise<boolean> {
   for (const selector of selectors) {
     try {
@@ -18,12 +13,12 @@ export async function clickFirstMatch(page: Page, selectors: string[], label: st
         log(M, `clicked: ${label}`);
         return true;
       }
-    } catch { /* sonraki selector'ı dene */ }
+    } catch { continue; }
   }
   return false;
 }
 
-/** Sayfada görünür metin içeren butonu tıkla */
+/** Click a button matching any of the given text keywords */
 export async function clickButtonByText(page: Page, keywords: string[], label: string): Promise<boolean> {
   for (const kw of keywords) {
     try {
@@ -33,20 +28,20 @@ export async function clickButtonByText(page: Page, keywords: string[], label: s
         log(M, `clicked: ${label} (text="${kw}")`);
         return true;
       }
-    } catch { /* sonraki keyword'ü dene */ }
+    } catch { continue; }
   }
   return false;
 }
 
-/** Belirli bir koşul gerçekleşene kadar bekle */
+/** Poll until check() returns true or timeout */
 export async function waitForCondition(
   page: Page,
   check: () => Promise<boolean>,
   timeoutMs: number,
   intervalMs = 2000,
 ): Promise<boolean> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
     if (await check()) return true;
     await sleep(intervalMs);
   }

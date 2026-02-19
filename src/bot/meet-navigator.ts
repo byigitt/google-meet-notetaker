@@ -1,5 +1,3 @@
-// ─── Meet Navigator ──────────────────────────────────────
-// SRP: Tek sorumluluk → Google Meet sayfasında navigasyon
 // ─────────────────────────────────────────────────────────
 
 import type { Page } from 'patchright';
@@ -7,8 +5,6 @@ import { clickFirstMatch, clickButtonByText, waitForCondition, sleep } from './p
 import { log, warn, debug } from '../logger';
 
 const M = 'navigator';
-
-// ── Selector grupları (DRY: tek yerde tanımlı) ──
 
 const SEL = {
   nameInput: [
