@@ -1,12 +1,13 @@
-// ─── Type Definitions ────────────────────────────────────
-// SRP: Tek sorumluluk → tüm uygulama tip tanımları
-// ─────────────────────────────────────────────────────────
+export type TranscriptSource = 'captions' | 'whisper';
+
+export type MeetingStatus = 'joining' | 'waiting' | 'in-meeting' | 'ended' | 'error';
 
 export interface TranscriptEntry {
   speaker: string;
   text: string;
   startTime: Date;
   endTime: Date;
+  source?: TranscriptSource;
 }
 
 export interface MeetingSummary {
@@ -30,21 +31,4 @@ export interface MeetingResult {
   transcript: TranscriptEntry[];
   summary?: MeetingSummary;
   error?: string;
-}
-
-export type MeetingStatus =
-  | 'joining'
-  | 'waiting'
-  | 'in-meeting'
-  | 'ended'
-  | 'error';
-
-/** Bot → Server arası event'ler */
-export interface BotEvents {
-  'status': (status: MeetingStatus) => void;
-  'caption': (entry: TranscriptEntry) => void;
-  'caption-update': (index: number, entry: TranscriptEntry) => void;
-  'participant': (name: string) => void;
-  'ended': (result: MeetingResult) => void;
-  'error': (message: string) => void;
 }

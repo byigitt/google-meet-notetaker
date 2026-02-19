@@ -1,5 +1,3 @@
-// ─── HTTP + WebSocket Server ─────────────────────────────
-// SRP: Tek sorumluluk → API endpoint'leri ve WS yayını
 // ─────────────────────────────────────────────────────────
 
 import express from 'express';
@@ -39,9 +37,9 @@ export function createApp(config: AppConfig) {
 
     try {
       const transcriber = createTranscriber(config.transcriptionStrategy, {
-        openaiApiKey: config.openaiApiKey,
-        openaiBaseUrl: config.openaiBaseUrl,
-        deepgramApiKey: config.deepgramApiKey,
+        openaiApiKey:  config.openaiApiKey,
+        whisperApiKey: config.whisperApiKey,
+        whisperBaseUrl: config.whisperBaseUrl,
       });
 
       const bot = new MeetBot(meetLink, config.botName, config.captionLanguage, transcriber);

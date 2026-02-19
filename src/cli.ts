@@ -1,9 +1,5 @@
 #!/usr/bin/env node
 
-// ─── CLI Entry Point ─────────────────────────────────────
-// Web UI olmadan terminalden toplantı yönetimi
-// ─────────────────────────────────────────────────────────
-
 import readline from 'readline';
 import fs from 'fs/promises';
 import path from 'path';
@@ -15,8 +11,6 @@ import { MeetingResult, MeetingSummary } from './types';
 import { log, warn, error } from './logger';
 
 const M = 'cli';
-
-// ─── CLI Options ──────────────────────────────────────────
 
 interface CliOptions {
   meetLink?: string;
@@ -40,7 +34,8 @@ Usage:
 Options:
   --name <name>        Bot name (default from .env)
   --lang <language>    Caption language (e.g. Turkish, English)
-  --strategy <type>    captions | deepgram | whisper
+  --strategy <type>    captions | whisper
+  -w                   Shorthand for --strategy whisper
   --no-summary         Skip auto AI summary at the end
   --save-dir <dir>     Save transcript + summary to directory
   --debug              Enable verbose debug logs
@@ -74,14 +69,15 @@ function parseArgs(argv: string[]): CliOptions {
       case '-h': case '--help':   opts.help = true; break;
       case '--no-summary':        opts.autoSummary = false; break;
       case '--debug':             opts.debug = true; break;
+      case '-w':                  opts.strategy = 'whisper'; break;
       case '--meet':              opts.meetLink = next('--meet'); break;
       case '--name':              opts.botName = next('--name'); break;
       case '--lang':              opts.captionLanguage = next('--lang'); break;
       case '--save-dir':          opts.saveDir = next('--save-dir'); break;
       case '--strategy': {
         const s = next('--strategy') as TranscriptionStrategy;
-        if (!['captions', 'deepgram', 'whisper'].includes(s)) {
-          throw new Error(`invalid strategy "${s}" — use captions, deepgram, or whisper`);
+        if (!['captions', 'whisper'].includes(s)) {
+          throw new Error(`invalid strategy "${s}" — use captions or whisper`);
         }
         opts.strategy = s;
         break;
@@ -124,12 +120,14 @@ function mergeConfig(base: AppConfig, opts: CliOptions): AppConfig {
   };
 }
 
-// ─── Output ───────────────────────────────────────────────
-
-function formatTranscript(result: MeetingResult): string {
-  return result.transcript
+function formatTranscriptLines(entries: MeetingResult['transcript']): string {
+  return entries
     .map(e => `[${new Date(e.startTime).toLocaleTimeString('tr-TR')}] ${e.speaker}: ${e.text}`)
     .join('\n');
+}
+
+function formatTranscript(result: MeetingResult): string {
+  return formatTranscriptLines(result.transcript);
 }
 
 function formatSummaryMarkdown(s: MeetingSummary): string {
@@ -161,9 +159,25 @@ async function saveArtifacts(dir: string, result: MeetingResult, summary?: Meeti
 
   await fs.mkdir(dir, { recursive: true });
 
-  const tPath = path.join(dir, `${base}-transcript.txt`);
-  await fs.writeFile(tPath, formatTranscript(result), 'utf-8');
-  log(M, `transcript saved: ${tPath}`);
+  // Kaynak bazlı transcript ayrımı
+  const captionEntries = result.transcript.filter(e => e.source !== 'whisper');
+  const whisperEntries = result.transcript.filter(e => e.source === 'whisper');
+  const hasDual = captionEntries.length > 0 && whisperEntries.length > 0;
+
+  if (hasDual) {
+    // İki ayrı dosya
+    const cPath = path.join(dir, `${base}-transcript-captions.txt`);
+    await fs.writeFile(cPath, formatTranscriptLines(captionEntries), 'utf-8');
+    log(M, `captions transcript saved: ${cPath}`);
+
+    const wPath = path.join(dir, `${base}-transcript-whisper.txt`);
+    await fs.writeFile(wPath, formatTranscriptLines(whisperEntries), 'utf-8');
+    log(M, `whisper transcript saved: ${wPath}`);
+  } else {
+    const tPath = path.join(dir, `${base}-transcript.txt`);
+    await fs.writeFile(tPath, formatTranscript(result), 'utf-8');
+    log(M, `transcript saved: ${tPath}`);
+  }
 
   if (summary) {
     const sPath = path.join(dir, `${base}-summary.md`);
@@ -198,8 +212,6 @@ function printSummary(s: MeetingSummary): void {
   console.log('='.repeat(50) + '\n');
 }
 
-// ─── Main ─────────────────────────────────────────────────
-
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
 
@@ -223,14 +235,14 @@ async function main(): Promise<void> {
   log(M, `strategy : ${config.transcriptionStrategy}`);
   log(M, `meeting  : ${meetLink}`);
   if (config.transcriptionStrategy === 'whisper') {
-    log(M, `whisper  : ${config.whisperModel} (recording until meeting ends)`);
+    log(M, `whisper  : ${config.whisperModel} (audio recording active)`);
   }
   console.log('');
 
   const transcriber = createTranscriber(config.transcriptionStrategy, {
-    openaiApiKey: config.openaiApiKey,
-    openaiBaseUrl: config.openaiBaseUrl,
-    deepgramApiKey: config.deepgramApiKey,
+    openaiApiKey:  config.openaiApiKey,
+    whisperApiKey: config.whisperApiKey,
+    whisperBaseUrl: config.whisperBaseUrl,
   });
 
   const bot = new MeetBot(meetLink, config.botName, config.captionLanguage, transcriber);
@@ -245,7 +257,22 @@ async function main(): Promise<void> {
     summaryBusy = true;
     try {
       const result = bot.getResult();
-      const summary = await summarizer.summarize(result.transcript, result.participants, bot.session.duration);
+
+      const whisperEntries = result.transcript.filter(e => e.source === 'whisper');
+      const captionEntries = result.transcript.filter(e => e.source !== 'whisper');
+
+      // Prefer whisper (higher quality), fall back to captions, then all
+      let transcriptForSummary = result.transcript;
+      if (whisperEntries.length > 0) {
+        transcriptForSummary = whisperEntries;
+        if (captionEntries.length > 0) {
+          log(M, `summary using whisper transcript (${whisperEntries.length} entries)`);
+        }
+      } else if (captionEntries.length > 0) {
+        transcriptForSummary = captionEntries;
+      }
+
+      const summary = await summarizer.summarize(transcriptForSummary, result.participants, bot.session.duration);
       lastSummary = summary;
       return summary;
     } finally {
@@ -272,12 +299,16 @@ async function main(): Promise<void> {
   // ─── Bot events ───────────────────────────────────────
 
   bot.on('status', status => {
-    printLive(`${new Date().toTimeString().slice(0, 8)} [INFO ] [bot] status=${status}`);
+    printLive(`${new Date().toTimeString().slice(0, 8)} [INFO] [bot] status=${status}`);
   });
 
   bot.on('caption', entry => {
     const time = new Date(entry.startTime).toLocaleTimeString('tr-TR');
-    printLive(`[${time}] ${entry.speaker}: ${entry.text}`);
+    if (entry.source === 'whisper') {
+      printLive(`[WHISPER][${time}] ${entry.text}`);
+    } else {
+      printLive(`[${time}] ${entry.speaker}: ${entry.text}`);
+    }
   });
 
   bot.on('error', msg => {
@@ -354,7 +385,7 @@ async function main(): Promise<void> {
   await bot.join();
 
   if (config.transcriptionStrategy === 'whisper') {
-    log(M, '>>> audio recording active — transcript will be generated when meeting ends <<<');
+    log(M, '>>> audio recording active — transcript will appear when meeting ends <<<');
   }
 
   log(M, 'ready — type "help" for commands');
