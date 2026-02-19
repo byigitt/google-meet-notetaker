@@ -4,6 +4,9 @@
 // ─────────────────────────────────────────────────────────
 
 import type { Page } from 'patchright';
+import { log } from '../logger';
+
+const M = 'page-actions';
 
 /** Birden fazla selector dener, ilk bulunanı tıklar */
 export async function clickFirstMatch(page: Page, selectors: string[], label: string): Promise<boolean> {
@@ -12,7 +15,7 @@ export async function clickFirstMatch(page: Page, selectors: string[], label: st
       const el = page.locator(selector).first();
       if (await el.isVisible({ timeout: 500 })) {
         await el.click();
-        console.log(`✅ ${label} tıklandı`);
+        log(M, `clicked: ${label}`);
         return true;
       }
     } catch { /* sonraki selector'ı dene */ }
@@ -27,7 +30,7 @@ export async function clickButtonByText(page: Page, keywords: string[], label: s
       const btn = page.getByRole('button', { name: new RegExp(kw, 'i') }).first();
       if (await btn.isVisible({ timeout: 500 })) {
         await btn.click();
-        console.log(`✅ ${label} tıklandı (metin: "${kw}")`);
+        log(M, `clicked: ${label} (text="${kw}")`);
         return true;
       }
     } catch { /* sonraki keyword'ü dene */ }

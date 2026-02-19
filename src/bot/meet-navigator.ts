@@ -4,6 +4,9 @@
 
 import type { Page } from 'patchright';
 import { clickFirstMatch, clickButtonByText, waitForCondition, sleep } from './page-actions';
+import { log, warn, debug } from '../logger';
+
+const M = 'navigator';
 
 // ── Selector grupları (DRY: tek yerde tanımlı) ──
 
@@ -45,15 +48,19 @@ const WAITING_PATTERNS = [
   'katılmanıza izin ver',
 ];
 
+const NAV_DEBUG_ENABLED =
+  process.env.CLI_DEBUG === '1' ||
+  process.env.DEBUG_MEET === '1';
+
 export class MeetNavigator {
   constructor(private page: Page) {}
 
   async goToMeeting(link: string): Promise<void> {
-    console.log(`🔗 Sayfaya gidiliyor: ${link}`);
+    log(M, `navigating to: ${link}`);
     await this.page.goto(link, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    console.log('✅ Sayfa yüklendi, 3sn bekleniyor…');
+    log(M, 'page loaded, waiting 3s...');
     await sleep(3000);
-    console.log(`📍 Mevcut URL: ${this.page.url()}`);
+    log(M, `current url: ${this.page.url()}`);
   }
 
   async dismissCookieDialog(): Promise<void> {
@@ -61,7 +68,7 @@ export class MeetNavigator {
       const btn = this.page.getByRole('button', { name: /accept|kabul/i }).first();
       if (await btn.isVisible({ timeout: 2000 })) {
         await btn.click();
-        console.log('🍪 Çerez dialogu kapatıldı');
+        log(M, 'cookie dialog dismissed');
         await sleep(1000);
       }
     } catch { /* dialog yoksa sorun değil */ }
@@ -74,35 +81,35 @@ export class MeetNavigator {
         if (await input.isVisible({ timeout: 1000 })) {
           await input.click({ clickCount: 3 });
           await input.fill(name);
-          console.log(`📝 İsim girildi: ${name}`);
+          log(M, `name entered: ${name}`);
           return;
         }
       } catch { continue; }
     }
-    console.log('ℹ️  İsim girişi bulunamadı (hesapla giriş yapılmış olabilir)');
+    log(M, 'name input not found (may be signed in)');
   }
 
   async turnOffMediaDevices(): Promise<void> {
-    const micOff = await clickFirstMatch(this.page, [...SEL.micOff], '🔇 Mikrofon');
+    const micOff = await clickFirstMatch(this.page, [...SEL.micOff], 'mic-off');
     if (micOff) await sleep(300);
-    const camOff = await clickFirstMatch(this.page, [...SEL.cameraOff], '📷 Kamera');
+    const camOff = await clickFirstMatch(this.page, [...SEL.cameraOff], 'cam-off');
     if (camOff) await sleep(300);
   }
 
   async clickJoin(): Promise<void> {
-    console.log('🔍 Katıl butonu aranıyor…');
+    log(M, 'looking for join button...');
     const clicked =
-      await clickFirstMatch(this.page, [...SEL.joinButton], '🚪 Katıl butonu') ||
-      await clickButtonByText(this.page, JOIN_KEYWORDS, '🚪 Katıl butonu');
+      await clickFirstMatch(this.page, [...SEL.joinButton], 'join-button') ||
+      await clickButtonByText(this.page, JOIN_KEYWORDS, 'join-button');
 
     if (!clicked) {
-      console.log('⚠️  Katıl butonu bulunamadı — sayfadaki butonları listeliyorum:');
+      warn(M, 'join button not found');
       await this.debugListButtons();
     }
   }
 
   async waitUntilJoined(timeoutMs = 120_000): Promise<void> {
-    console.log('⏳ Toplantıya kabul bekleniyor…');
+    log(M, 'waiting to be admitted...');
 
     const joined = await waitForCondition(
       this.page,
@@ -133,7 +140,7 @@ export class MeetNavigator {
       timeoutMs,
     );
 
-    if (!joined) throw new Error('Toplantıya katılma zaman aşımı');
+    if (!joined) throw new Error('meeting admit timeout');
   }
 
   // ── Popup dialog'ları kapat ──
@@ -165,7 +172,7 @@ export class MeetNavigator {
       });
 
       if (dismissed.length > 0) {
-        console.log(`🔲 Popup kapatıldı: ${dismissed.join(', ')}`);
+        log(M, `popup dismissed: ${dismissed.join(', ')}`);
         await sleep(500);
       }
     } catch { /* sorun değil */ }
@@ -174,14 +181,16 @@ export class MeetNavigator {
   // ── Altyazıları aç + dil seç ──
 
   async enableCaptions(language?: string): Promise<void> {
-    console.log('📝 Altyazılar açılıyor…');
+    log(M, 'enabling captions...');
     await sleep(2000);
 
     // Önce popup dialog'ları kapat
     await this.dismissPopups();
 
-    // Debug: alt toolbar'daki butonları göster
-    await this.debugBottomToolbar();
+    // Debug modunda alt toolbar butonlarını göster
+    if (NAV_DEBUG_ENABLED) {
+      await this.debugBottomToolbar();
+    }
 
     let opened = false;
 
@@ -214,7 +223,7 @@ export class MeetNavigator {
 
         if (clicked) {
           opened = true;
-          console.log(`✅ Altyazı butonu tıklandı (evaluate: ${clicked})`);
+          log(M, `captions button clicked via evaluate (${clicked})`);
         }
       } catch { /* sonraki yöntemi dene */ }
     }
@@ -230,7 +239,7 @@ export class MeetNavigator {
         'button[data-tooltip*="caption" i]',
         'button[data-tooltip*="altyazı" i]',
       ];
-      opened = await clickFirstMatch(this.page, ariaSelectors, '📝 Altyazı butonu');
+      opened = await clickFirstMatch(this.page, ariaSelectors, 'captions-button');
     }
 
     // Yöntem 3: "More options" menüsü üzerinden caption aç
@@ -240,32 +249,31 @@ export class MeetNavigator {
 
     // Yöntem 4: Klavye kısayolu 'c'
     if (!opened) {
-      console.log('⌨️  Altyazı butonu bulunamadı, c kısayolunu deniyorum…');
-      // Önce focus'u video alanına taşı (chat input'taysa 'c' çalışmaz)
+      log(M, 'captions button not found, trying keyboard shortcut c...');
       await this.page.evaluate(() => {
         const videoArea = document.querySelector('[data-self-name], [data-participant-id], [data-requested-participant-id]');
         if (videoArea) (videoArea as HTMLElement).click();
       }).catch(() => {});
       await sleep(300);
       await this.page.keyboard.press('c');
-      console.log('📝 c kısayolu gönderildi');
+      log(M, 'keyboard shortcut c sent');
     }
 
     await sleep(2000);
 
-    // Doğrulama: Altyazılar gerçekten açık mı?
+    // Doğrulama
     const verified = await this.verifyCaptionsEnabled();
     if (verified) {
-      console.log('✅ Altyazılar aktif olduğu doğrulandı');
+      log(M, 'captions verified active');
     } else {
-      console.log('⚠️  Altyazılar doğrulanamadı, tekrar c deneniyor…');
+      warn(M, 'captions not verified, retrying with c...');
       await this.page.keyboard.press('c');
       await sleep(2000);
       const retry = await this.verifyCaptionsEnabled();
       if (retry) {
-        console.log('✅ Altyazılar aktif (2. deneme)');
+        log(M, 'captions active (retry ok)');
       } else {
-        console.log('⚠️  Altyazılar açılamıyor olabilir — caption observer yine de başlatılacak');
+        warn(M, 'captions may not be active — observer will still run');
       }
     }
 
@@ -328,7 +336,7 @@ export class MeetNavigator {
 
   private async enableCaptionsThroughMoreOptions(): Promise<boolean> {
     try {
-      console.log('📋 More options menüsünden altyazı açılmaya çalışılıyor…');
+      log(M, 'trying to enable captions via more options...');
 
       const moreClicked = await this.clickMoreOptions();
       if (!moreClicked) return false;
@@ -343,7 +351,7 @@ export class MeetNavigator {
           }).first();
           if (await item.isVisible({ timeout: 800 })) {
             await item.click();
-            console.log(`✅ Altyazılar menüden açıldı ("${kw}")`);
+            log(M, `captions enabled via menu ("${kw}")`);
             return true;
           }
         } catch { continue; }
@@ -360,7 +368,7 @@ export class MeetNavigator {
   // ── Caption dil seçimi ──
 
   async selectCaptionLanguage(language: string): Promise<void> {
-    console.log(`🌐 Altyazı dili seçiliyor: "${language}"…`);
+    log(M, `selecting caption language: "${language}"`);
 
     // Yöntem 1 (Ana): More Options → direkt dil listesinden seç
     // Google Meet'in güncel versiyonunda More Options açıldığında
@@ -376,14 +384,14 @@ export class MeetNavigator {
     const settingsPick = await this.changeLanguageThroughSettings(language);
     if (settingsPick) return;
 
-    console.log(`⚠️  "${language}" dili ayarlanamadı — varsayılan dil kullanılacak`);
+    warn(M, `language "${language}" could not be set — using default`);
   }
 
   // ── More Options → Direkt dil listesinden seçim (güncel Meet UI) ──
 
   private async selectLanguageViaMoreOptions(language: string): Promise<boolean> {
     try {
-      console.log('🔍 More Options üzerinden dil seçimi deneniyor…');
+      log(M, 'trying language selection via more options...');
 
       // "More options" butonunu tıkla
       const moreClicked = await this.clickMoreOptions();
@@ -420,7 +428,7 @@ export class MeetNavigator {
           const el = this.page.locator(sel).first();
           if (await el.isVisible({ timeout: 1000 })) {
             await el.click();
-            console.log('✅ Dil değiştirme linki tıklandı');
+            log(M, 'language change link clicked');
             await sleep(1000);
             return await this.pickLanguageFromVisibleList(language);
           }
@@ -436,7 +444,7 @@ export class MeetNavigator {
 
   private async changeLanguageThroughSettings(language: string): Promise<boolean> {
     try {
-      console.log('⚙️  Settings üzerinden dil değiştiriliyor…');
+      log(M, 'trying language change via settings...');
 
       const moreClicked = await this.clickMoreOptions();
       if (!moreClicked) return false;
@@ -452,7 +460,7 @@ export class MeetNavigator {
           if (await item.isVisible({ timeout: 800 })) {
             await item.click();
             settingsFound = true;
-            console.log(`✅ "${kw}" tıklandı`);
+            log(M, `settings menu item clicked: "${kw}"`);
             break;
           }
         } catch { continue; }
@@ -473,7 +481,7 @@ export class MeetNavigator {
           }).first();
           if (await tab.isVisible({ timeout: 800 })) {
             await tab.click();
-            console.log(`✅ "${kw}" sekmesi tıklandı`);
+            log(M, `settings tab clicked: "${kw}"`);
             await sleep(800);
             break;
           }
@@ -494,7 +502,7 @@ export class MeetNavigator {
 
       return langSelected;
     } catch (e: any) {
-      console.log(`⚠️  Settings dil seçimi başarısız: ${e.message}`);
+      warn(M, `settings language change failed: ${e.message}`);
       await this.page.keyboard.press('Escape').catch(() => {});
       return false;
     }
@@ -513,7 +521,7 @@ export class MeetNavigator {
         const match = options.find(o => o.toLowerCase().includes(language.toLowerCase()));
         if (match) {
           await sel.selectOption({ label: match });
-          console.log(`✅ Dil seçildi (select): ${match}`);
+          log(M, `language selected via <select>: ${match}`);
           return true;
         }
       }
@@ -563,7 +571,7 @@ export class MeetNavigator {
     });
 
     if (clicked) {
-      console.log(`✅ ⚙️ More options tıklandı (${clicked})`);
+      log(M, `more-options clicked (${clicked})`);
       return true;
     }
     return false;
@@ -593,7 +601,7 @@ export class MeetNavigator {
     }, language);
 
     if (clicked) {
-      console.log(`✅ Dil seçildi: "${clicked}"`);
+      log(M, `language selected: "${clicked}"`);
       await sleep(500);
       return true;
     }
@@ -609,27 +617,24 @@ export class MeetNavigator {
 
       await sleep(1000);
 
-      // role="option" öğelerini çek, "Default" (boyut ayarı) görene kadar
       const languages = await this.page.evaluate(() => {
         const items = document.querySelectorAll('[role="option"]');
         const langs: string[] = [];
         for (const item of items) {
           const text = item.textContent?.trim() || '';
-          // "Default" = boyut/renk ayarlarının başlangıcı → dur
           if (text === 'Default') break;
           if (text.length > 0) langs.push(text);
         }
         return langs;
       });
 
-      // Menüyü kapat
       await this.page.keyboard.press('Escape');
       await sleep(300);
 
-      console.log(`📋 ${languages.length} dil seçeneği bulundu`);
+      log(M, `${languages.length} languages found`);
       return languages;
     } catch (e: any) {
-      console.log(`⚠️  Dil listesi alınamadı: ${e.message}`);
+      warn(M, `failed to get languages: ${e.message}`);
       await this.page.keyboard.press('Escape').catch(() => {});
       return [];
     }
@@ -638,12 +643,12 @@ export class MeetNavigator {
   // ── Anlık dil değiştirme (web UI'dan çağrılır) ──
 
   async changeCaptionLanguage(language: string): Promise<boolean> {
-    console.log(`🌐 Dil değiştiriliyor: "${language}"…`);
+    log(M, `changing caption language to: "${language}"`);
     return await this.selectLanguageViaMoreOptions(language);
   }
 
   async clickLeave(): Promise<void> {
-    await clickFirstMatch(this.page, [...SEL.leave], '👋 Ayrıl');
+    await clickFirstMatch(this.page, [...SEL.leave], 'leave-button');
   }
 
   async isMeetingOver(): Promise<boolean> {
@@ -667,6 +672,8 @@ export class MeetNavigator {
   // ── Debug ──
 
   private async debugListButtons(): Promise<void> {
+    if (!NAV_DEBUG_ENABLED) return;
+
     try {
       const buttons = await this.page.evaluate(() => {
         return Array.from(document.querySelectorAll('button')).map(b => ({
@@ -675,13 +682,15 @@ export class MeetNavigator {
           jsname: b.getAttribute('jsname'),
         }));
       });
-      console.log('📋 Sayfadaki butonlar:', JSON.stringify(buttons, null, 2));
+      this.navDebug('buttons on page', buttons);
     } catch (e: any) {
-      console.log('⚠️  Buton listesi alınamadı:', e.message);
+      this.navDebug('failed to inspect buttons', { error: e.message });
     }
   }
 
   private async debugBottomToolbar(): Promise<void> {
+    if (!NAV_DEBUG_ENABLED) return;
+
     try {
       const info = await this.page.evaluate(() => {
         const buttons = document.querySelectorAll('button');
@@ -703,13 +712,15 @@ export class MeetNavigator {
         }
         return relevant;
       });
-      console.log('🔍 Alt toolbar butonları:', JSON.stringify(info, null, 2));
+      this.navDebug('bottom toolbar buttons', info);
     } catch (e: any) {
-      console.log('⚠️  Toolbar debug başarısız:', e.message);
+      this.navDebug('toolbar debug failed', { error: e.message });
     }
   }
 
   private async debugMenuItems(): Promise<void> {
+    if (!NAV_DEBUG_ENABLED) return;
+
     try {
       const items = await this.page.evaluate(() => {
         const els = document.querySelectorAll('[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], li[role]');
@@ -718,13 +729,15 @@ export class MeetNavigator {
           role: el.getAttribute('role'),
         }));
       });
-      console.log('📋 Menü öğeleri:', JSON.stringify(items, null, 2));
+      this.navDebug('menu items', items);
     } catch (e: any) {
-      console.log('⚠️  Menü debug başarısız:', e.message);
+      this.navDebug('menu debug failed', { error: e.message });
     }
   }
 
   private async debugDialogContent(): Promise<void> {
+    if (!NAV_DEBUG_ENABLED) return;
+
     try {
       const info = await this.page.evaluate(() => {
         const dialog = document.querySelector('[role="dialog"], [role="alertdialog"], div[data-view-id]');
@@ -738,9 +751,15 @@ export class MeetNavigator {
 
         return { found: true, tabs, selects, dropdowns, text };
       });
-      console.log('🔍 Dialog:', JSON.stringify(info, null, 2));
+      this.navDebug('dialog info', info);
     } catch (e: any) {
-      console.log('⚠️  Dialog debug başarısız:', e.message);
+      this.navDebug('dialog debug failed', { error: e.message });
     }
+  }
+
+  private navDebug(message: string, payload?: unknown): void {
+    if (!NAV_DEBUG_ENABLED) return;
+    const suffix = payload ? `: ${JSON.stringify(payload, null, 2)}` : '';
+    debug(M, `${message}${suffix}`);
   }
 }

@@ -8,7 +8,9 @@ import { MeetNavigator } from './meet-navigator';
 import { BaseTranscriber } from '../transcription/base-transcriber';
 import { MeetingSession } from '../session/meeting-session';
 import { MeetingResult, MeetingStatus } from '../types';
+import { log, warn, error } from '../logger';
 
+const M = 'meet-bot';
 const MEETING_END_CHECK_MS = 5000;
 
 export class MeetBot extends EventEmitter {
@@ -35,42 +37,42 @@ export class MeetBot extends EventEmitter {
   async join(): Promise<void> {
     try {
       this.setStatus('joining');
-      console.log('');
-      console.log('═══════════════════════════════════════');
-      console.log('  BOT BAŞLATILIYOR');
-      console.log('═══════════════════════════════════════');
+      log(M, '=== bot starting ===');
 
       // 1) Tarayıcı aç
-      console.log('\n[1/7] 🌐 Tarayıcı başlatılıyor…');
+      log(M, '[1/7] launching browser...');
       const page = await this.browser.launch();
       this.navigator = new MeetNavigator(page);
 
-      // 2) Meet sayfasına git
-      console.log('\n[2/7] 🔗 Toplantı sayfasına gidiliyor…');
+      // 2) Erken setup (WhisperTranscriber RTCPeerConnection'ı intercept etmeli)
+      log(M, '[2/7] transcriber prepare (pre-navigation)...');
+      await this.transcriber.prepare(page);
+
+      // 3) Meet sayfasına git
+      log(M, '[3/7] navigating to meeting...');
       await this.navigator.goToMeeting(this.session.meetLink);
 
-      // 3) Çerez dialogu
-      console.log('\n[3/7] 🍪 Çerez dialogu kontrol ediliyor…');
+      // 4) Çerez dialogu
+      log(M, '[4/7] checking cookie dialog...');
       await this.navigator.dismissCookieDialog();
 
-      // 4) İsim gir, medya kapat
-      console.log('\n[4/7] 📝 İsim & medya ayarları…');
+      // 5) İsim gir, medya kapat
+      log(M, '[5/7] entering name & disabling media...');
       await this.navigator.enterName(this.botName);
       await this.navigator.turnOffMediaDevices();
 
-      // 5) Katıl
-      console.log('\n[5/7] 🚪 Katılma butonu tıklanıyor…');
+      // 6) Katıl
+      log(M, '[6/7] clicking join button...');
       await this.navigator.clickJoin();
 
-      // 6) Kabul edilmeyi bekle
-      console.log('\n[6/7] ⏳ Toplantıya kabul bekleniyor…');
+      // 7) Kabul edilmeyi bekle
+      log(M, '[7/7] waiting to be admitted...');
       this.setStatus('waiting');
       await this.navigator.waitUntilJoined();
 
-      // 7) Toplantıdayız!
+      // Toplantıdayız!
       this.setStatus('in-meeting');
-      console.log('\n[7/7] ✅ Toplantıya katıldım!');
-      console.log('═══════════════════════════════════════\n');
+      log(M, '=== admitted to meeting ===');
 
       // Altyazı aç + dil seç + transkripsiyon başlat
       await this.navigator.enableCaptions(this.captionLanguage);
@@ -80,8 +82,7 @@ export class MeetBot extends EventEmitter {
       this.startEndMonitor();
 
     } catch (err: any) {
-      console.error('\n❌ BOT HATASI:', err.message);
-      console.error('Stack:', err.stack);
+      error(M, `join failed: ${err.message}`);
       this.session.setError(err.message);
       this.setStatus('error');
       this.emit('error', err.message);
@@ -114,7 +115,7 @@ export class MeetBot extends EventEmitter {
     await this.browser.close();
 
     this.setStatus('ended');
-    console.log('👋 Toplantı sona erdi');
+    log(M, 'meeting ended');
 
     this.emit('ended', this.session.toResult());
   }
@@ -150,9 +151,7 @@ export class MeetBot extends EventEmitter {
     this.endCheckTimer = setInterval(async () => {
       if (!this.navigator) return;
       try {
-        // Popup dialog'ları otomatik kapat
         await this.navigator.dismissPopups();
-
         if (await this.navigator.isMeetingOver()) {
           await this.end();
         }

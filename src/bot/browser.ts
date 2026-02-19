@@ -3,13 +3,16 @@
 // ─────────────────────────────────────────────────────────
 
 import { chromium, type Browser, type BrowserContext, type Page } from 'patchright';
+import { log } from '../logger';
+
+const M = 'browser';
 
 export class BrowserManager {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
 
   async launch(): Promise<Page> {
-    console.log('🌐 Chrome başlatılıyor…');
+    log(M, 'launching chrome...');
 
     this.browser = await chromium.launch({
       channel: 'chrome',
@@ -24,18 +27,17 @@ export class BrowserManager {
         '--no-default-browser-check',
       ],
     });
-    console.log('✅ Browser açıldı');
+    log(M, 'browser open');
 
     this.context = await this.browser.newContext({
       permissions: ['camera', 'microphone'],
       viewport: null,
       ignoreHTTPSErrors: true,
     });
-    console.log('✅ Context oluşturuldu');
+    log(M, 'context ready');
 
     const page = await this.context.newPage();
-    console.log('✅ Sayfa hazır');
-
+    log(M, 'page ready');
     return page;
   }
 

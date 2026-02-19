@@ -4,6 +4,9 @@
 
 import OpenAI from 'openai';
 import { MeetingSummary, TranscriptEntry } from '../types';
+import { log, warn } from '../logger';
+
+const M = 'summarizer';
 
 const SYSTEM_PROMPT = `Sen bir toplantı asistanısın. Sana bir toplantının transkriptini vereceğim.
 Aşağıdaki formatta bir JSON döndür (başka hiçbir şey yazma):
@@ -47,6 +50,7 @@ export class Summarizer {
       formattedTranscript,
     ].filter(Boolean).join('\n');
 
+    log(M, `sending ${transcript.length} entries to gpt-4o-mini...`);
     const response = await this.client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -75,7 +79,7 @@ export class Summarizer {
         decisions: parsed.decisions ?? [],
       };
     } catch {
-      // JSON parse başarısız olursa ham metni kullan
+      warn(M, 'json parse failed, using raw text');
       return {
         title: 'Toplantı',
         date: new Date().toLocaleDateString('tr-TR'),

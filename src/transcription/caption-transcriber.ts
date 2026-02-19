@@ -6,6 +6,9 @@
 import type { Page } from 'patchright';
 import { BaseTranscriber } from './base-transcriber';
 import { TranscriptEntry } from '../types';
+import { log, debug } from '../logger';
+
+const M = 'caption';
 
 export class CaptionTranscriber extends BaseTranscriber {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -13,10 +16,8 @@ export class CaptionTranscriber extends BaseTranscriber {
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** Son görülen text — debounce'dan bağımsız, polling duplicate'lerini engeller */
   private lastSeenText = new Map<string, string>();
-  private page: Page | null = null;
 
   async start(page: Page): Promise<void> {
-    this.page = page;
     this.active = true;
 
     // Sayfa içine callback expose et
@@ -32,7 +33,7 @@ export class CaptionTranscriber extends BaseTranscriber {
     // Yedek: Polling ile de kontrol et
     this.startPolling(page);
 
-    console.log('🎙️  Caption transcriber başlatıldı');
+    log(M, 'transcriber started');
   }
 
   async stop(): Promise<void> {
@@ -42,8 +43,7 @@ export class CaptionTranscriber extends BaseTranscriber {
     this.debounceTimers.clear();
     this.lastSeenText.clear();
     this.lastSpeakerText.clear();
-    this.page = null;
-    console.log('🎙️  Caption transcriber durduruldu');
+    log(M, 'transcriber stopped');
   }
 
   // ── Altyazı observer'ı enjekte et ──
@@ -63,14 +63,10 @@ export class CaptionTranscriber extends BaseTranscriber {
       var seen = new Set();
 
       var findCaptionContainer = function() {
-        // Öncelik 1: role="region" aria-label="Captions"
         var region = document.querySelector('[role="region"][aria-label="Captions"]');
         if (region) return region;
-
-        // Öncelik 2: jsname="dsyhDe" (Google Meet caption wrapper)
         var jsnamed = document.querySelector('div[jsname="dsyhDe"]');
         if (jsnamed) return jsnamed;
-
         return null;
       };
 
@@ -80,12 +76,9 @@ export class CaptionTranscriber extends BaseTranscriber {
 
         var results = [];
 
-        // Her caption entry: speaker (.NWpY1d) + text (.ygicle)
-        // Speaker class: NWpY1d  |  Text class: ygicle
         var speakerEls = container.querySelectorAll('.NWpY1d');
         var textEls = container.querySelectorAll('.ygicle');
 
-        // Eğer class-based bulursa
         if (speakerEls.length > 0 && textEls.length > 0) {
           var count = Math.min(speakerEls.length, textEls.length);
           for (var i = 0; i < count; i++) {
@@ -98,15 +91,12 @@ export class CaptionTranscriber extends BaseTranscriber {
           return results;
         }
 
-        // Fallback: container içindeki entry pattern'ını tara
-        // Her entry = speaker img/name div + text div olan bir wrapper
         var entries = container.querySelectorAll('div');
         for (var ei = 0; ei < entries.length; ei++) {
           var entry = entries[ei];
           var children = entry.children;
           if (children.length < 2) continue;
 
-          // İlk child'da speaker span, ikinci child'da text
           var speakerSpan = entry.querySelector('span');
           var lastChild = children[children.length - 1];
 
@@ -115,9 +105,7 @@ export class CaptionTranscriber extends BaseTranscriber {
           var spk = (speakerSpan.textContent || '').trim();
           var txt = (lastChild.textContent || '').trim();
 
-          // speaker ve text farklı olmalı, text uzun olmalı
           if (spk && txt && txt.length >= 1 && spk !== txt && txt.indexOf(spk) === -1) {
-            // Duplicate kontrolü: aynı speaker+text'i ekleme
             var dup = false;
             for (var ri = 0; ri < results.length; ri++) {
               if (results[ri].speaker === spk && results[ri].text === txt) { dup = true; break; }
@@ -155,15 +143,13 @@ export class CaptionTranscriber extends BaseTranscriber {
         subtree: true,
         characterData: true
       });
-
-      console.log('[CaptionObserver] Enjekte edildi, container: ' + (findCaptionContainer() ? 'BULUNDU' : 'henüz yok'));
     })()`);
   }
 
   // ── Polling (yedek mekanizma) ──
 
   private startPolling(page: Page): void {
-    let pollDebugCount = 0;
+    let pollCount = 0;
 
     this.pollTimer = setInterval(async () => {
       if (!this.active) {
@@ -174,13 +160,10 @@ export class CaptionTranscriber extends BaseTranscriber {
       try {
         const captions = await page.evaluate(`(function() {
           var results = [];
-
-          // Caption container bul
           var container = document.querySelector('[role="region"][aria-label="Captions"]')
                        || document.querySelector('div[jsname="dsyhDe"]');
           if (!container) return results;
 
-          // Speaker: .NWpY1d  |  Text: .ygicle
           var speakerEls = container.querySelectorAll('.NWpY1d');
           var textEls = container.querySelectorAll('.ygicle');
 
@@ -195,9 +178,9 @@ export class CaptionTranscriber extends BaseTranscriber {
           return results;
         })()`);
 
-        pollDebugCount++;
-        if (pollDebugCount <= 20 && pollDebugCount % 5 === 0) {
-          console.log(`🔍 [Poll #${pollDebugCount}] ${(captions as any[]).length} caption bulundu`);
+        pollCount++;
+        if (pollCount <= 20 && pollCount % 5 === 0) {
+          debug(M, `poll #${pollCount}: ${(captions as any[]).length} captions`);
         }
 
         for (const c of captions as { speaker: string; text: string }[]) {
@@ -207,7 +190,7 @@ export class CaptionTranscriber extends BaseTranscriber {
     }, 1500);
   }
 
-  // ── Caption işleme (DRY: tek yerde) ──
+  // ── Caption işleme ──
 
   private handleCaption(speaker: string, text: string): void {
     // Tam aynı text → atla (polling duplicate koruması)
@@ -218,8 +201,7 @@ export class CaptionTranscriber extends BaseTranscriber {
     const last = this.lastSpeakerText.get(speaker);
 
     if (last) {
-      // Speaker hâlâ aktif (debounce dolmadı) → mevcut entry'yi güncelle
-      // Bu hem ekleme ("hello" → "hello world") hem düzeltme ("öbür" → "bu bir") yakalar
+      // Speaker hâlâ aktif → mevcut entry'yi güncelle
       this.updateEntry(last.index, text);
       this.lastSpeakerText.set(speaker, { text, index: last.index });
     } else {

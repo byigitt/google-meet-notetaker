@@ -4,35 +4,27 @@
 
 import { loadConfig } from './config';
 import { createApp } from './server';
+import { log } from './logger';
+
+const M = 'app';
 
 async function main() {
-  console.log('');
-  console.log('🎙️  Google Meet AI Notetaker');
-  console.log('════════════════════════════════════');
-
   const config = loadConfig();
 
-  console.log(`📋 Strateji : ${config.transcriptionStrategy}`);
-  console.log(`🤖 Bot adı  : ${config.botName}`);
-  console.log(`🌐 Dil      : ${config.captionLanguage}`);
-  console.log(`🌐 Port     : ${config.port}`);
-  console.log('');
+  log(M, `strategy : ${config.transcriptionStrategy}`);
+  log(M, `bot name : ${config.botName}`);
+  log(M, `language : ${config.captionLanguage}`);
+  log(M, `port     : ${config.port}`);
 
   const { http } = createApp(config);
 
   http.listen(config.port, () => {
-    console.log(`✅ Sunucu çalışıyor → http://localhost:${config.port}`);
-    console.log('');
-    console.log('Kullanım:');
-    console.log('  1. Tarayıcıda http://localhost:' + config.port + ' adresini açın');
-    console.log('  2. Google Meet linkini yapıştırın');
-    console.log('  3. "Toplantıya Katıl" butonuna basın');
-    console.log('  4. Toplantı bitince "Özet Oluştur" ile AI özeti alın');
-    console.log('');
+    log(M, `server running at http://localhost:${config.port}`);
+    log(M, 'open the URL in your browser to start');
   });
 }
 
 main().catch(err => {
-  console.error('💥 Başlatma hatası:', err.message);
+  console.error(`FATAL: ${err.message}`);
   process.exit(1);
 });
