@@ -1,191 +1,326 @@
 <!DOCTYPE html>
-<html lang="tr" style="color-scheme: dark">
+<html lang="tr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#06080F">
-  <title>Meet Notetaker — Mission Control</title>
+  <meta name="theme-color" content="#ffffff">
+  <title>Meet Notetaker — Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Skip link -->
-  <a href="#joinSection" class="skip-link">Ana içeriğe geç</a>
-
-  <!-- Ambient background layers -->
-  <div class="bg-grid" aria-hidden="true"></div>
-  <div class="bg-glow bg-glow--1" aria-hidden="true"></div>
-  <div class="bg-glow bg-glow--2" aria-hidden="true"></div>
-  <div class="scanline" aria-hidden="true"></div>
-
-  <!-- Live region for async status announcements -->
+  <!-- Screen reader announcements -->
   <div class="sr-only" aria-live="polite" id="a11yAnnouncer"></div>
 
-  <!-- Visible toast notifications -->
+  <!-- Toast container -->
   <div class="toast-container" id="toastContainer"></div>
 
-  <main class="app" id="mainContent">
-
-    <!-- ─── Top Bar ─── -->
-    <header class="topbar">
-      <div class="topbar__left">
-        <div class="topbar__logo">
-          <div class="topbar__logo-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
-              <circle cx="12" cy="12" r="4" fill="currentColor"/>
-              <line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="1.5"/>
-              <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="1.5"/>
-              <line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="1.5"/>
-              <line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="1.5"/>
+  <div class="app-layout">
+    <!-- ─── Sidebar ─── -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__header">
+        <div class="sidebar__brand">
+          <div class="sidebar__logo">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <rect width="28" height="28" rx="8" fill="var(--blue-500)"/>
+              <path d="M8 10.5C8 9.67 8.67 9 9.5 9H13.5C14.33 9 15 9.67 15 10.5V17.5C15 18.33 14.33 19 13.5 19H9.5C8.67 19 8 18.33 8 17.5V10.5Z" fill="white" opacity="0.9"/>
+              <path d="M15 12L19.4 9.8C19.78 9.61 20.22 9.89 20.22 10.31V17.69C20.22 18.11 19.78 18.39 19.4 18.2L15 16V12Z" fill="white" opacity="0.7"/>
             </svg>
           </div>
           <div>
-            <h1 class="topbar__title">MEET NOTETAKER</h1>
-            <span class="topbar__subtitle">Mission Control v1.0</span>
+            <h1 class="sidebar__title">Meet Notetaker</h1>
+            <span class="sidebar__version">Dashboard v2.0</span>
           </div>
         </div>
       </div>
-      <div class="topbar__right">
-        <div class="topbar__clock" id="clock">00:00:00</div>
-        <div class="topbar__connection" id="connectionBadge">
-          <span class="conn-dot"></span>
-          <span class="conn-text">OFFLINE</span>
-        </div>
-      </div>
-    </header>
 
-    <!-- ─── Join Panel ─── -->
-    <section class="panel panel--join" id="joinSection">
-      <div class="panel__header">
-        <span class="panel__tag">SYS.INPUT</span>
-        <h2 class="panel__title">Toplantı Bağlantısı</h2>
-      </div>
-      <form id="joinForm" class="join-form" autocomplete="off">
-        <label for="meetLink" class="sr-only">Google Meet bağlantısı</label>
-        <div class="join-form__input-wrap">
-          <span class="join-form__prefix" aria-hidden="true">LINK://</span>
-          <input
-            type="text"
-            id="meetLink"
-            name="meetLink"
-            class="join-form__input"
-            placeholder="meet.google.com/xxx-xxxx-xxx…"
-            required
-            spellcheck="false"
-            autocomplete="off"
-          />
-        </div>
-        <div class="join-form__error hidden" id="joinError" role="alert"></div>
-        <button type="submit" id="joinBtn" class="btn btn--launch">
-          <svg class="btn__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M3 13L13 3M13 3H5M13 3V11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <!-- New Meeting -->
+      <div class="sidebar__section">
+        <button class="new-meeting-btn" id="newMeetingBtn" aria-label="Yeni toplantıya katıl">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          <span>BAŞLAT</span>
+          <span>Yeni Toplantı</span>
         </button>
-      </form>
-    </section>
-
-    <!-- ─── Telemetry Dashboard ─── -->
-    <section class="panel panel--telemetry hidden" id="statusSection">
-      <div class="panel__header">
-        <span class="panel__tag">TELEMETRY</span>
-        <h2 class="panel__title">Oturum Verileri</h2>
       </div>
-      <div class="telemetry">
-        <div class="telem-card">
-          <div class="telem-card__label">DURUM</div>
-          <div class="telem-card__value" id="statusText">
-            <span class="status-dot"></span>
-            <span>—</span>
+
+      <!-- Meeting List -->
+      <div class="sidebar__section sidebar__section--grow">
+        <div class="sidebar__section-header">
+          <span class="sidebar__section-title">Aktif Toplantılar</span>
+          <span class="sidebar__badge" id="activeBadge">0</span>
+        </div>
+        <div class="meeting-list" id="activeMeetingList">
+          <div class="meeting-list__empty">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="8" stroke="var(--gray-300)" stroke-width="1.5" stroke-dasharray="3 3"/>
+              <path d="M10 7V13M7 10H13" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <span>Henüz aktif toplantı yok</span>
           </div>
         </div>
-        <div class="telem-card">
-          <div class="telem-card__label">KATILIMCI</div>
-          <div class="telem-card__value telem-card__value--mono" id="participantCount">0</div>
+      </div>
+
+      <div class="sidebar__section">
+        <div class="sidebar__section-header">
+          <span class="sidebar__section-title">Tamamlanan</span>
+          <span class="sidebar__badge" id="completedBadge">0</span>
         </div>
-        <div class="telem-card">
-          <div class="telem-card__label">TRANSKRIPT</div>
-          <div class="telem-card__value telem-card__value--mono" id="captionCount">0</div>
-        </div>
-        <div class="telem-card">
-          <div class="telem-card__label">SÜRE</div>
-          <div class="telem-card__value telem-card__value--mono" id="duration">00:00</div>
+        <div class="meeting-list" id="completedMeetingList">
+          <div class="meeting-list__empty">
+            <span>Tamamlanan toplantı yok</span>
+          </div>
         </div>
       </div>
-      <!-- ─── Language Selector ─── -->
-      <div class="lang-selector" id="langSelector">
-        <div class="lang-selector__header">
-          <span class="lang-selector__label">ALTYAZI DİLİ</span>
-          <button id="fetchLangsBtn" class="btn btn--ghost btn--sm" aria-label="Dilleri yükle">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-              <path d="M6 1V3M6 9V11M1 6H3M9 6H11M2.05 2.05L3.46 3.46M8.54 8.54L9.95 9.95M2.05 9.95L3.46 8.54M8.54 3.46L9.95 2.05" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+
+      <!-- Connection Status -->
+      <div class="sidebar__footer">
+        <div class="connection-status" id="connectionStatus">
+          <span class="connection-dot"></span>
+          <span class="connection-text">Bağlanıyor…</span>
+        </div>
+        <div class="sidebar__clock" id="clock">00:00</div>
+      </div>
+    </aside>
+
+    <!-- ─── Main Content ─── -->
+    <main class="main-content" id="mainContent">
+      <!-- Welcome State -->
+      <div class="welcome-state" id="welcomeState">
+        <div class="welcome-state__inner">
+          <div class="welcome-state__icon">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+              <rect x="4" y="4" width="56" height="56" rx="16" stroke="var(--blue-200)" stroke-width="2" stroke-dasharray="4 4"/>
+              <rect x="12" y="16" width="24" height="18" rx="4" fill="var(--blue-100)" stroke="var(--blue-300)" stroke-width="1.5"/>
+              <path d="M36 22L46 17V33L36 28V22Z" fill="var(--blue-100)" stroke="var(--blue-300)" stroke-width="1.5"/>
+              <circle cx="24" cy="44" r="3" fill="var(--blue-200)"/>
+              <circle cx="32" cy="44" r="3" fill="var(--blue-300)"/>
+              <circle cx="40" cy="44" r="3" fill="var(--blue-400)"/>
             </svg>
-            YENİLE
+          </div>
+          <h2 class="welcome-state__title">Toplantılara Katılın</h2>
+          <p class="welcome-state__desc">
+            Google Meet linkini yapıştırarak birden fazla toplantıya aynı anda bot gönderebilirsiniz. 
+            Her toplantı otomatik olarak kaydedilir ve AI ile özetlenir.
+          </p>
+          <button class="btn btn--primary btn--lg" id="welcomeNewBtn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Toplantıya Katıl
           </button>
         </div>
-        <div class="lang-selector__current" id="currentLang">
-          <span class="lang-selector__current-label">Aktif:</span>
-          <span class="lang-selector__current-value" id="currentLangValue">—</span>
-        </div>
-        <div class="lang-selector__search-wrap hidden" id="langSearchWrap">
-          <svg class="lang-selector__search-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-            <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
-            <path d="M8 8L11 11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-          </svg>
-          <input type="text" id="langSearch" class="lang-selector__search" placeholder="Dil ara…" spellcheck="false" autocomplete="off" />
-        </div>
-        <div class="lang-selector__list hidden" id="langList" role="listbox" aria-label="Dil seçenekleri"></div>
       </div>
 
-      <div class="panel__actions">
-        <button id="leaveBtn" class="btn btn--abort" aria-label="Toplantıdan ayrıl">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <!-- Meeting Detail View (hidden by default) -->
+      <div class="meeting-detail hidden" id="meetingDetail">
+        <!-- Meeting Header -->
+        <div class="detail-header">
+          <div class="detail-header__left">
+            <button class="btn btn--ghost btn--icon" id="backToWelcome" aria-label="Geri dön" title="Geri dön">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <div>
+              <h2 class="detail-header__title" id="detailTitle">Toplantı</h2>
+              <div class="detail-header__link" id="detailLink">—</div>
+            </div>
+          </div>
+          <div class="detail-header__actions">
+            <div class="status-pill" id="detailStatus">
+              <span class="status-pill__dot"></span>
+              <span class="status-pill__text">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+          <div class="stat-card">
+            <div class="stat-card__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M2 14C2 11.2386 4.23858 9 7 9H9C11.7614 9 14 11.2386 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="stat-card__info">
+              <div class="stat-card__value" id="detailParticipants">0</div>
+              <div class="stat-card__label">Katılımcı</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 4H14M2 8H10M2 12H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="stat-card__info">
+              <div class="stat-card__value" id="detailCaptions">0</div>
+              <div class="stat-card__label">Transkript</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M8 4.5V8L10.5 10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="stat-card__info">
+              <div class="stat-card__value" id="detailDuration">00:00</div>
+              <div class="stat-card__label">Süre</div>
+            </div>
+          </div>
+          <div class="stat-card stat-card--actions">
+            <button class="btn btn--danger btn--sm" id="detailLeaveBtn">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M9 1H11C12.1046 1 13 1.89543 13 3V11C13 12.1046 12.1046 13 11 13H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M6 4L2 7L6 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M2 7H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              Ayrıl
+            </button>
+            <button class="btn btn--primary btn--sm" id="detailSummarizeBtn">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 2H11C11.5523 2 12 2.44772 12 3V11C12 11.5523 11.5523 12 11 12H3C2.44772 12 2 11.5523 2 11V3C2 2.44772 2.44772 2 3 2Z" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M5 5.5H9M5 8.5H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              AI Özet
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab tab--active" data-tab="transcript" id="tabTranscript">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M2 3.5H12M2 7H9M2 10.5H11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            Transkript
+          </button>
+          <button class="tab" data-tab="summary" id="tabSummary">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M5 5H9M5 7H8M5 9H7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+            Özet
+          </button>
+          <button class="tab" data-tab="language" id="tabLanguage">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M1.5 7H12.5M7 1.5C5.5 3.5 5.5 10.5 7 12.5M7 1.5C8.5 3.5 8.5 10.5 7 12.5" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+            Dil
+          </button>
+        </div>
+
+        <!-- Tab Content: Transcript -->
+        <div class="tab-content" id="tabContentTranscript">
+          <div class="transcript-feed" id="transcriptFeed" role="log" aria-label="Canlı transkript">
+            <div class="feed-empty" id="feedEmpty">
+              <div class="feed-empty__icon">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                  <rect x="4" y="8" width="24" height="16" rx="4" stroke="var(--gray-300)" stroke-width="1.5"/>
+                  <path d="M10 15H16M10 19H22" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <span>Konuşma bekleniyor…</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Content: Summary -->
+        <div class="tab-content hidden" id="tabContentSummary">
+          <div class="summary-placeholder" id="summaryPlaceholder">
+            <div class="summary-placeholder__icon">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <rect x="4" y="4" width="24" height="24" rx="4" stroke="var(--gray-300)" stroke-width="1.5"/>
+                <path d="M10 10H22M10 15H18M10 20H20" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span>Özet oluşturmak için "AI Özet" butonuna tıklayın</span>
+          </div>
+          <div class="summary-content hidden" id="summaryContent"></div>
+        </div>
+
+        <!-- Tab Content: Language -->
+        <div class="tab-content hidden" id="tabContentLanguage">
+          <div class="language-panel">
+            <div class="language-panel__header">
+              <div class="language-panel__current">
+                <span class="language-panel__label">Aktif Dil</span>
+                <span class="language-panel__value" id="currentLanguage">—</span>
+              </div>
+              <button class="btn btn--outline btn--sm" id="fetchLanguagesBtn">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M1.5 7C1.5 3.96 3.96 1.5 7 1.5C9.1 1.5 10.9 2.7 11.7 4.5M12.5 7C12.5 10.04 10.04 12.5 7 12.5C4.9 12.5 3.1 11.3 2.3 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  <path d="M11 2V5H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M3 12V9H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Dilleri Yükle
+              </button>
+            </div>
+            <div class="language-panel__search hidden" id="langSearchWrap">
+              <svg class="language-panel__search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M10 10L13 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <input type="text" id="langSearch" class="language-panel__search-input" placeholder="Dil ara…" spellcheck="false" autocomplete="off" />
+            </div>
+            <div class="language-panel__list hidden" id="langList" role="listbox" aria-label="Dil seçenekleri"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- New Meeting Modal -->
+  <div class="modal-overlay hidden" id="modalOverlay">
+    <div class="modal" id="newMeetingModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal__header">
+        <h3 class="modal__title" id="modalTitle">Yeni Toplantıya Katıl</h3>
+        <button class="btn btn--ghost btn--icon" id="modalClose" aria-label="Kapat">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          SONLANDIR
         </button>
-        <button id="summarizeBtn" class="btn btn--primary" aria-label="AI ile toplantı özeti oluştur">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-            <path d="M7 1V13M1 7H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          AI ÖZET OLUŞTUR
-        </button>
       </div>
-    </section>
-
-    <!-- ─── Live Feed ─── -->
-    <section class="panel panel--feed hidden" id="transcriptSection">
-      <div class="panel__header">
-        <div class="panel__header-left">
-          <span class="panel__tag">LIVE.FEED</span>
-          <h2 class="panel__title">Canlı Transkript</h2>
+      <form id="joinForm" autocomplete="off">
+        <div class="form-group">
+          <label for="meetLink" class="form-label">Google Meet Linki</label>
+          <div class="form-input-wrap">
+            <svg class="form-input-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6.5 8.5C7.16 9.35 8.12 9.9 9.19 9.97C10.27 10.04 11.29 9.62 12 8.84L13.5 7.34C14.84 6 14.84 3.84 13.5 2.5C12.16 1.16 10 1.16 8.66 2.5L7.58 3.58" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M9.5 7.5C8.84 6.65 7.88 6.1 6.81 6.03C5.73 5.96 4.71 6.38 4 7.16L2.5 8.66C1.16 10 1.16 12.16 2.5 13.5C3.84 14.84 6 14.84 7.34 13.5L8.42 12.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <input
+              type="text"
+              id="meetLink"
+              class="form-input"
+              placeholder="meet.google.com/abc-defg-hij"
+              required
+              spellcheck="false"
+              autocomplete="off"
+            />
+          </div>
+          <div class="form-error hidden" id="joinError" role="alert"></div>
+          <p class="form-hint">Örnek: https://meet.google.com/abc-defg-hij</p>
         </div>
-        <div class="live-indicator" id="liveIndicator">
-          <span class="live-indicator__dot"></span>
-          <span class="live-indicator__text">CANLI</span>
+        <div class="modal__footer">
+          <button type="button" class="btn btn--ghost" id="modalCancelBtn">İptal</button>
+          <button type="submit" class="btn btn--primary" id="joinBtn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M3 13L13 3M13 3H5M13 3V11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Katıl
+          </button>
         </div>
-      </div>
-      <div class="feed" id="transcript" role="log" aria-label="Canlı transkript" aria-live="polite">
-        <div class="feed__empty">
-          <span class="feed__empty-icon" aria-hidden="true">◉</span>
-          Konuşma bekleniyor…
-        </div>
-      </div>
-    </section>
-
-    <!-- ─── AI Summary ─── -->
-    <section class="panel panel--summary hidden" id="summarySection">
-      <div class="panel__header">
-        <span class="panel__tag">AI.ANALYSIS</span>
-        <h2 class="panel__title">Toplantı Özeti</h2>
-      </div>
-      <div id="summaryContent"></div>
-    </section>
-
-  </main>
+      </form>
+    </div>
+  </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="app.js"></script>
