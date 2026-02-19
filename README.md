@@ -8,6 +8,7 @@ AI destekli Google Meet toplantı asistanı. Bir link ver, bot toplantıya katı
 - **📝 Canlı Transkript** — Google Meet altyazıları veya Deepgram ile real-time transkript
 - **✨ AI Özet** — OpenAI GPT ile toplantı özeti, önemli noktalar, yapılacaklar
 - **🖥️ Mission Control UI** — Real-time WebSocket dashboard
+- **⌨️ CLI Modu** — Web arayüzü olmadan terminalden toplantı yönetimi
 - **🔌 Strategy Pattern** — Caption scraping veya Deepgram, kolayca değiştirilebilir
 
 ## 🏗️ Mimari
@@ -16,7 +17,8 @@ AI destekli Google Meet toplantı asistanı. Bir link ver, bot toplantıya katı
 src/
 ├── config.ts                    # Uygulama konfigürasyonu
 ├── types.ts                     # Tip tanımları
-├── index.ts                     # Entry point
+├── index.ts                     # Web entry point
+├── cli.ts                       # CLI entry point
 ├── server.ts                    # Express + Socket.IO server
 ├── bot/
 │   ├── browser.ts               # Chrome yaşam döngüsü (SRP)
@@ -51,8 +53,11 @@ pnpm exec patchright install chromium
 cp .env.example .env
 # .env dosyasını düzenle: OPENAI_API_KEY ekle
 
-# 3. Başlat
+# 3A. Web arayüzü ile başlat
 pnpm dev
+
+# 3B. CLI ile başlat
+pnpm cli --help
 ```
 
 ## ⚙️ Konfigürasyon
@@ -67,13 +72,36 @@ pnpm dev
 
 ## 📋 Kullanım
 
-1. `npm run dev` ile sunucuyu başlat
+### Web UI
+
+1. `pnpm dev` ile sunucuyu başlat
 2. `http://localhost:3000` adresini aç
 3. Google Meet linkini yapıştır
 4. **BAŞLAT** butonuna bas
 5. Bot toplantıya katılır → toplantı sahibi kabul eder
 6. Canlı transkript akar
 7. Toplantı bitince **AI ÖZET OLUŞTUR** ile özet al
+
+### CLI
+
+```bash
+# Direkt link ile başlat
+pnpm cli https://meet.google.com/xxx-xxxx-xxx
+
+# Seçeneklerle
+pnpm cli --meet https://meet.google.com/xxx-xxxx-xxx --name "AI Notetaker" --lang Turkish --strategy captions
+
+# Çıktıları dosyaya kaydet
+pnpm cli https://meet.google.com/xxx-xxxx-xxx --save-dir ./outputs
+```
+
+CLI çalışırken kullanılabilir komutlar:
+- `help`
+- `status`
+- `summary`
+- `languages`
+- `language <ad>`
+- `leave` / `exit` / `quit`
 
 ## 🎯 Transkripsiyon Stratejileri
 
