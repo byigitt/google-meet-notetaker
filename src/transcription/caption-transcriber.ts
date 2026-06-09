@@ -17,17 +17,17 @@ export class CaptionTranscriber extends BaseTranscriber {
   async start(page: Page): Promise<void> {
     this.active = true;
 
-    // Sayfa içine callback expose et
+    // Expose callback into the page
     try {
       await page.exposeFunction('__onCaption', (speaker: string, text: string) => {
         this.handleCaption(speaker, text);
       });
-    } catch { /* zaten expose edilmiş olabilir */ }
+    } catch { /* it may already be exposed */ }
 
-    // MutationObserver enjekte et
+    // Inject MutationObserver
     await this.injectCaptionObserver(page);
 
-    // Yedek: Polling ile de kontrol et
+    // Fallback: also check with polling
     this.startPolling(page);
 
     log(M, 'transcriber started');
@@ -171,14 +171,14 @@ export class CaptionTranscriber extends BaseTranscriber {
         for (const c of captions as { speaker: string; text: string }[]) {
           this.handleCaption(c.speaker, c.text);
         }
-      } catch { /* sayfa kapanmış olabilir */ }
+      } catch { /* the page may have closed */ }
     }, 1500);
   }
 
 
 
   private handleCaption(speaker: string, text: string): void {
-    // Tam aynı text → atla (polling duplicate koruması)
+    // Exact same text → skip (polling duplicate guard)
     const seen = this.lastSeenText.get(speaker);
     if (seen === text) return;
     this.lastSeenText.set(speaker, text);
@@ -186,18 +186,18 @@ export class CaptionTranscriber extends BaseTranscriber {
     const last = this.lastSpeakerText.get(speaker);
 
     if (last) {
-      // Speaker hâlâ aktif → mevcut entry'yi güncelle
+      // Speaker is still active → update the existing entry
       this.updateEntry(last.index, text);
       this.lastSpeakerText.set(speaker, { text, index: last.index });
     } else {
-      // Yeni cümle (speaker ilk kez veya debounce sonrası)
+      // New sentence (first speaker entry or after debounce)
       const now = new Date();
       const entry: TranscriptEntry = { speaker, text, startTime: now, endTime: now };
       const index = this.addEntry(entry);
       this.lastSpeakerText.set(speaker, { text, index });
     }
 
-    // Debounce: speaker sustu → sonraki konuşması yeni entry olsun
+    // Debounce: speaker stopped speaking → next speech becomes a new entry
     const existing = this.debounceTimers.get(speaker);
     if (existing) clearTimeout(existing);
 

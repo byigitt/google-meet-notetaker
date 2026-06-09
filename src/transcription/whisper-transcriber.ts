@@ -9,7 +9,6 @@ import { spawn, execSync } from 'child_process';
 import OpenAI from 'openai';
 import type { Page } from 'patchright';
 import { BaseTranscriber } from './base-transcriber';
-import { TranscriptEntry } from '../types';
 import { log, warn, error, debug } from '../logger';
 
 const M = 'whisper';
@@ -19,7 +18,7 @@ const INIT_SCRIPT = `(function() {
   window.__whisperInitDone = true;
   window.__whisperCapture = { tracks: [] };
 
-  /* RTCPeerConnection — gelen audio track'leri yakala */
+  /* RTCPeerConnection — capture incoming audio tracks */
   var _OrigPC = window.RTCPeerConnection;
   if (_OrigPC) {
     function PatchedPC() {
@@ -38,7 +37,7 @@ const INIT_SCRIPT = `(function() {
     window.RTCPeerConnection = PatchedPC;
   }
 
-  /* HTMLMediaElement.srcObject — media element stream'leri yakala */
+  /* HTMLMediaElement.srcObject — capture media element streams */
   var _desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'srcObject');
   if (_desc && _desc.set) {
     Object.defineProperty(HTMLMediaElement.prototype, 'srcObject', {

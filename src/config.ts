@@ -28,7 +28,7 @@ export function loadConfig(): AppConfig {
   return {
     port:                   parseInt(env('PORT', '3000'), 10),
     botName:                env('BOT_NAME', 'AI Notetaker'),
-    captionLanguage:        env('CAPTION_LANGUAGE', 'Turkish'),
+    captionLanguage:        env('CAPTION_LANGUAGE', 'English'),
     transcriptionStrategy:  env('TRANSCRIPTION_STRATEGY', 'captions') as TranscriptionStrategy,
     openaiApiKey,
     whisperApiKey:          process.env.WHISPER_API_KEY ?? openaiApiKey,

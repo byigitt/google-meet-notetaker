@@ -110,7 +110,7 @@
   // ══════════════════════════════════════════════
 
   function tickClock() {
-    dom.clock.textContent = new Date().toLocaleTimeString('tr-TR', {
+    dom.clock.textContent = new Date().toLocaleTimeString('en-US', {
       hour: '2-digit', minute: '2-digit',
     });
   }
@@ -131,7 +131,7 @@
 
     socket.on('disconnect', () => {
       setConnection(false);
-      showError('Sunucu bağlantısı kesildi');
+      showError('Server connection lost');
     });
 
     socket.on('status', (data) => {
@@ -142,7 +142,7 @@
         m.startTime = new Date();
         startDurationTimer(data.sessionId);
         autoFetchLanguages(data.sessionId);
-        showSuccess(`Toplantıya katıldı: ${extractCode(m.meetLink)}`);
+        showSuccess(`Joined meeting: ${extractCode(m.meetLink)}`);
       }
       if (data.status === 'ended' || data.status === 'error') {
         stopDurationTimer(data.sessionId);
@@ -189,7 +189,7 @@
       if (selectedMeetingId === data.sessionId) {
         renderDetailHeader();
       }
-      showInfo(`Toplantı sona erdi: ${extractCode(m.meetLink)}`);
+      showInfo(`Meeting ended: ${extractCode(m.meetLink)}`);
     });
 
     socket.on('error', (data) => {
@@ -202,7 +202,7 @@
           renderDetailHeader();
         }
       }
-      showError(data.message || 'Bilinmeyen hata');
+      showError(data.message || 'Unknown error');
     });
 
     socket.on('language-changed', (data) => {
@@ -213,16 +213,16 @@
         dom.currentLanguage.textContent = data.language;
         renderLanguageList(data.sessionId);
       }
-      showSuccess('Dil değiştirildi: ' + data.language);
+      showSuccess('Language changed: ' + data.language);
     });
   } else {
-    showError('Socket.IO yüklenemedi — sunucu çalışıyor mu?');
+    showError('Socket.IO failed to load — is the server running?');
   }
 
   function setConnection(online) {
     dom.connectionStatus.classList.toggle('online', online);
     dom.connectionStatus.querySelector('.connection-text').textContent =
-      online ? 'Bağlı' : 'Bağlantı yok';
+      online ? 'Connected' : 'No connection';
   }
 
   // ══════════════════════════════════════════════
@@ -234,7 +234,7 @@
     dom.meetLink.value = '';
     dom.joinError.classList.add('hidden');
     dom.joinBtn.disabled = false;
-    dom.joinBtn.innerHTML = svgIcon('launch') + ' Katıl';
+    dom.joinBtn.innerHTML = svgIcon('launch') + ' Join';
     dom.meetLink.focus();
   }
 
@@ -283,14 +283,14 @@
     const link = normalizeMeetLink(rawLink);
 
     if (!link) {
-      dom.joinError.textContent = 'Geçerli bir Google Meet linki girin';
+      dom.joinError.textContent = 'Enter a valid Google Meet link';
       dom.joinError.classList.remove('hidden');
       return;
     }
 
     // Set loading
     dom.joinBtn.disabled = true;
-    dom.joinBtn.innerHTML = '<span class="loading-ring loading-ring--white"></span> Katılınıyor…';
+    dom.joinBtn.innerHTML = '<span class="loading-ring loading-ring--white"></span> Joining…';
 
     try {
       const res = await fetch('/api/join', {
@@ -302,10 +302,10 @@
       const data = await res.json();
 
       if (!res.ok) {
-        dom.joinError.textContent = data.error || 'Sunucu hatası';
+        dom.joinError.textContent = data.error || 'Server error';
         dom.joinError.classList.remove('hidden');
         dom.joinBtn.disabled = false;
-        dom.joinBtn.innerHTML = svgIcon('launch') + ' Katıl';
+        dom.joinBtn.innerHTML = svgIcon('launch') + ' Join';
         return;
       }
 
@@ -330,13 +330,13 @@
       closeModal();
       selectMeeting(data.sessionId);
       renderSidebar();
-      showInfo('Bot toplantıya katılıyor…');
+      showInfo('Bot is joining the meeting…');
 
     } catch (err) {
-      dom.joinError.textContent = 'Sunucuya bağlanılamadı: ' + err.message;
+      dom.joinError.textContent = 'Could not connect to the server: ' + err.message;
       dom.joinError.classList.remove('hidden');
       dom.joinBtn.disabled = false;
-      dom.joinBtn.innerHTML = svgIcon('launch') + ' Katıl';
+      dom.joinBtn.innerHTML = svgIcon('launch') + ' Join';
     }
   });
 
@@ -367,7 +367,7 @@
             '<circle cx="10" cy="10" r="8" stroke="var(--gray-300)" stroke-width="1.5" stroke-dasharray="3 3"/>' +
             '<path d="M10 7V13M7 10H13" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round"/>' +
           '</svg>' +
-          '<span>Henüz aktif toplantı yok</span>' +
+          '<span>No active meetings yet</span>' +
         '</div>';
     } else {
       dom.activeMeetingList.innerHTML = active.map(m => meetingItemHTML(m)).join('');
@@ -377,7 +377,7 @@
     // Completed meetings
     if (completed.length === 0) {
       dom.completedMeetingList.innerHTML =
-        '<div class="meeting-list__empty"><span>Tamamlanan toplantı yok</span></div>';
+        '<div class="meeting-list__empty"><span>No completed meetings</span></div>';
     } else {
       dom.completedMeetingList.innerHTML = completed.map(m => meetingItemHTML(m)).join('');
       bindMeetingItemClicks(dom.completedMeetingList);
@@ -388,11 +388,11 @@
     const isSelected = selectedMeetingId === m.id;
     const code = extractCode(m.meetLink);
     const statusLabels = {
-      'joining': 'Katılınıyor…',
-      'waiting': 'Kabul bekleniyor…',
-      'in-meeting': 'Toplantıda',
-      'ended': 'Sona erdi',
-      'error': 'Hata',
+      'joining': 'Joining…',
+      'waiting': 'Waiting for admission…',
+      'in-meeting': 'In meeting',
+      'ended': 'Ended',
+      'error': 'Error',
     };
 
     return `<div class="meeting-item${isSelected ? ' meeting-item--active' : ''}" data-id="${esc(m.id)}">
@@ -457,11 +457,11 @@
 
     // Status pill
     const statusLabels = {
-      'joining': 'Katılınıyor',
-      'waiting': 'Kabul Bekleniyor',
-      'in-meeting': 'Toplantıda',
-      'ended': 'Sona Erdi',
-      'error': 'Hata',
+      'joining': 'Joining',
+      'waiting': 'Waiting for Admission',
+      'in-meeting': 'In meeting',
+      'ended': 'Ended',
+      'error': 'Error',
     };
 
     dom.detailStatus.className = 'status-pill status-pill--' + m.status;
@@ -564,7 +564,7 @@
               '<path d="M10 15H16M10 19H22" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round"/>' +
             '</svg>' +
           '</div>' +
-          '<span>Konuşma bekleniyor…</span>' +
+          '<span>Waiting for speech…</span>' +
         '</div>';
       return;
     }
@@ -587,7 +587,7 @@
     el.dataset.index = String(index);
 
     const time = new Date(entry.startTime || Date.now());
-    const timeStr = time.toLocaleTimeString('tr-TR', {
+    const timeStr = time.toLocaleTimeString('en-US', {
       hour: '2-digit', minute: '2-digit', second: '2-digit',
     });
 
@@ -619,7 +619,7 @@
 
   dom.detailLeaveBtn.addEventListener('click', async () => {
     if (!selectedMeetingId) return;
-    if (!confirm('Bu toplantıdan ayrılmak istediğinize emin misiniz?')) return;
+    if (!confirm('Are you sure you want to leave this meeting?')) return;
 
     dom.detailLeaveBtn.disabled = true;
     try {
@@ -628,9 +628,9 @@
       if (m) m.status = 'ended';
       renderDetailHeader();
       renderSidebar();
-      showInfo('Toplantıdan ayrılındı');
+      showInfo('Left the meeting');
     } catch (err) {
-      showError('Ayrılma hatası: ' + err.message);
+      showError('Leave error: ' + err.message);
     } finally {
       dom.detailLeaveBtn.disabled = false;
     }
@@ -644,15 +644,15 @@
     if (!selectedMeetingId) return;
 
     dom.detailSummarizeBtn.disabled = true;
-    dom.detailSummarizeBtn.innerHTML = '<span class="loading-ring loading-ring--white"></span> Oluşturuluyor…';
-    showInfo('AI özet oluşturuluyor…');
+    dom.detailSummarizeBtn.innerHTML = '<span class="loading-ring loading-ring--white"></span> Generating…';
+    showInfo('Generating AI summary…');
 
     try {
       const res = await fetch('/api/summarize/' + selectedMeetingId, { method: 'POST' });
       const summary = await res.json();
 
       if (!res.ok) {
-        showError('Özet hatası: ' + (summary.error || 'Bilinmeyen hata'));
+        showError('Summary error: ' + (summary.error || 'Unknown error'));
         return;
       }
 
@@ -661,17 +661,17 @@
 
       renderSummaryContent(summary);
       switchTab('summary');
-      showSuccess('Toplantı özeti hazır!');
+      showSuccess('Meeting summary is ready!');
 
     } catch (err) {
-      showError('Özet hatası: ' + err.message);
+      showError('Summary error: ' + err.message);
     } finally {
       dom.detailSummarizeBtn.disabled = false;
       dom.detailSummarizeBtn.innerHTML =
         '<svg width="14" height="14" viewBox="0 0 14 14" fill="none">' +
           '<path d="M3 2H11C11.5523 2 12 2.44772 12 3V11C12 11.5523 11.5523 12 11 12H3C2.44772 12 2 11.5523 2 11V3C2 2.44772 2.44772 2 3 2Z" stroke="currentColor" stroke-width="1.5"/>' +
           '<path d="M5 5.5H9M5 8.5H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
-        '</svg> AI Özet';
+        '</svg> AI Summary';
     }
   });
 
@@ -692,22 +692,22 @@
     let html = '';
     html += '<h3 class="summary__title">' + esc(s.title) + '</h3>';
     html += '<div class="summary__meta">';
-    html += '<span class="summary__meta-item"><strong>Tarih:</strong> ' + esc(s.date) + '</span>';
-    html += '<span class="summary__meta-item"><strong>Süre:</strong> ' + esc(s.duration) + '</span>';
-    html += '<span class="summary__meta-item"><strong>Katılımcı:</strong> ' + esc(s.participants?.join(', ') || '—') + '</span>';
+    html += '<span class="summary__meta-item"><strong>Date:</strong> ' + esc(s.date) + '</span>';
+    html += '<span class="summary__meta-item"><strong>Duration:</strong> ' + esc(s.duration) + '</span>';
+    html += '<span class="summary__meta-item"><strong>Participants:</strong> ' + esc(s.participants?.join(', ') || '—') + '</span>';
     html += '</div>';
 
     if (s.summary) {
       html += '<div class="summary__text">' + esc(s.summary).replace(/\n/g, '<br>') + '</div>';
     }
     if (s.keyPoints?.length) {
-      html += summarySection('Önemli Noktalar', s.keyPoints, '');
+      html += summarySection('Key Points', s.keyPoints, '');
     }
     if (s.actionItems?.length) {
-      html += summarySection('Yapılacaklar', s.actionItems, 'summary__section--actions');
+      html += summarySection('Action Items', s.actionItems, 'summary__section--actions');
     }
     if (s.decisions?.length) {
-      html += summarySection('Alınan Kararlar', s.decisions, 'summary__section--decisions');
+      html += summarySection('Decisions', s.decisions, 'summary__section--decisions');
     }
 
     dom.summaryContent.innerHTML = html;
@@ -731,14 +731,14 @@
 
   async function fetchLanguages(sessionId) {
     dom.fetchLanguagesBtn.disabled = true;
-    dom.fetchLanguagesBtn.innerHTML = '<span class="loading-ring"></span> Yükleniyor…';
+    dom.fetchLanguagesBtn.innerHTML = '<span class="loading-ring"></span> Loading…';
 
     try {
       const res = await fetch('/api/languages/' + sessionId);
       const data = await res.json();
 
       if (!res.ok) {
-        showError('Dil listesi alınamadı: ' + (data.error || 'Bilinmeyen hata'));
+        showError('Could not fetch language list: ' + (data.error || 'Unknown error'));
         return;
       }
 
@@ -749,10 +749,10 @@
       dom.langList.classList.remove('hidden');
 
       renderLanguageList(sessionId);
-      showSuccess((data.languages?.length || 0) + ' dil seçeneği yüklendi');
+      showSuccess((data.languages?.length || 0) + ' language options loaded');
 
     } catch (err) {
-      showError('Dil listesi alınamadı: ' + err.message);
+      showError('Could not fetch language list: ' + err.message);
     } finally {
       dom.fetchLanguagesBtn.disabled = false;
       dom.fetchLanguagesBtn.innerHTML =
@@ -760,7 +760,7 @@
           '<path d="M1.5 7C1.5 3.96 3.96 1.5 7 1.5C9.1 1.5 10.9 2.7 11.7 4.5M12.5 7C12.5 10.04 10.04 12.5 7 12.5C4.9 12.5 3.1 11.3 2.3 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>' +
           '<path d="M11 2V5H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
           '<path d="M3 12V9H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' +
-        '</svg> Dilleri Yükle';
+        '</svg> Load Languages';
     }
   }
 
@@ -783,7 +783,7 @@
   function renderLanguageList(sessionId, filter) {
     const m = meetings.get(sessionId);
     if (!m || !m.languages.length) {
-      dom.langList.innerHTML = '<div class="language-panel__empty">Diller yüklenmedi</div>';
+      dom.langList.innerHTML = '<div class="language-panel__empty">Languages have not been loaded</div>';
       return;
     }
 
@@ -793,7 +793,7 @@
       : m.languages;
 
     if (!filtered.length) {
-      dom.langList.innerHTML = '<div class="language-panel__empty">Sonuç bulunamadı</div>';
+      dom.langList.innerHTML = '<div class="language-panel__empty">No results found</div>';
       return;
     }
 
@@ -824,7 +824,7 @@
   async function changeLanguage(sessionId, language) {
     if (!sessionId || !language) return;
 
-    showInfo('Dil değiştiriliyor: ' + language.replace('BETA', '').trim() + '…');
+    showInfo('Changing language: ' + language.replace('BETA', '').trim() + '…');
 
     try {
       const res = await fetch('/api/language/' + sessionId, {
@@ -835,7 +835,7 @@
 
       const data = await res.json();
       if (!res.ok) {
-        showError('Dil değiştirilemedi: ' + (data.error || 'Bilinmeyen hata'));
+        showError('Could not change language: ' + (data.error || 'Unknown error'));
         return;
       }
 
@@ -843,10 +843,10 @@
       if (m) m.currentLanguage = language;
       dom.currentLanguage.textContent = language.replace('BETA', '').trim();
       renderLanguageList(sessionId, dom.langSearch.value);
-      showSuccess('Dil değiştirildi: ' + language.replace('BETA', '').trim());
+      showSuccess('Language changed: ' + language.replace('BETA', '').trim());
 
     } catch (err) {
-      showError('Dil değiştirilemedi: ' + err.message);
+      showError('Could not change language: ' + err.message);
     }
   }
 

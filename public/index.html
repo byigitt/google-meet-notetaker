@@ -38,18 +38,18 @@
 
       <!-- New Meeting -->
       <div class="sidebar__section">
-        <button class="new-meeting-btn" id="newMeetingBtn" aria-label="Yeni toplantıya katıl">
+        <button class="new-meeting-btn" id="newMeetingBtn" aria-label="Join a new meeting">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          <span>Yeni Toplantı</span>
+          <span>New Meeting</span>
         </button>
       </div>
 
       <!-- Meeting List -->
       <div class="sidebar__section sidebar__section--grow">
         <div class="sidebar__section-header">
-          <span class="sidebar__section-title">Aktif Toplantılar</span>
+          <span class="sidebar__section-title">Active Meetings</span>
           <span class="sidebar__badge" id="activeBadge">0</span>
         </div>
         <div class="meeting-list" id="activeMeetingList">
@@ -58,19 +58,19 @@
               <circle cx="10" cy="10" r="8" stroke="var(--gray-300)" stroke-width="1.5" stroke-dasharray="3 3"/>
               <path d="M10 7V13M7 10H13" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
-            <span>Henüz aktif toplantı yok</span>
+            <span>No active meetings yet</span>
           </div>
         </div>
       </div>
 
       <div class="sidebar__section">
         <div class="sidebar__section-header">
-          <span class="sidebar__section-title">Tamamlanan</span>
+          <span class="sidebar__section-title">Completed</span>
           <span class="sidebar__badge" id="completedBadge">0</span>
         </div>
         <div class="meeting-list" id="completedMeetingList">
           <div class="meeting-list__empty">
-            <span>Tamamlanan toplantı yok</span>
+            <span>No completed meetings</span>
           </div>
         </div>
       </div>
@@ -79,7 +79,7 @@
       <div class="sidebar__footer">
         <div class="connection-status" id="connectionStatus">
           <span class="connection-dot"></span>
-          <span class="connection-text">Bağlanıyor…</span>
+          <span class="connection-text">Connecting…</span>
         </div>
         <div class="sidebar__clock" id="clock">00:00</div>
       </div>
@@ -100,16 +100,16 @@
               <circle cx="40" cy="44" r="3" fill="var(--blue-400)"/>
             </svg>
           </div>
-          <h2 class="welcome-state__title">Toplantılara Katılın</h2>
+          <h2 class="welcome-state__title">Join Meetings</h2>
           <p class="welcome-state__desc">
-            Google Meet linkini yapıştırarak birden fazla toplantıya aynı anda bot gönderebilirsiniz. 
-            Her toplantı otomatik olarak kaydedilir ve AI ile özetlenir.
+            Paste a Google Meet link to send bots to multiple meetings at the same time. 
+            Each meeting is captured automatically and summarized with AI.
           </p>
           <button class="btn btn--primary btn--lg" id="welcomeNewBtn">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
-            Toplantıya Katıl
+            Join Meeting
           </button>
         </div>
       </div>
@@ -119,13 +119,13 @@
         <!-- Meeting Header -->
         <div class="detail-header">
           <div class="detail-header__left">
-            <button class="btn btn--ghost btn--icon" id="backToWelcome" aria-label="Geri dön" title="Geri dön">
+            <button class="btn btn--ghost btn--icon" id="backToWelcome" aria-label="Go back" title="Go back">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
             <div>
-              <h2 class="detail-header__title" id="detailTitle">Toplantı</h2>
+              <h2 class="detail-header__title" id="detailTitle">Meeting</h2>
               <div class="detail-header__link" id="detailLink">—</div>
             </div>
           </div>
@@ -148,7 +148,7 @@
             </div>
             <div class="stat-card__info">
               <div class="stat-card__value" id="detailParticipants">0</div>
-              <div class="stat-card__label">Katılımcı</div>
+              <div class="stat-card__label">Participants</div>
             </div>
           </div>
           <div class="stat-card">
@@ -171,7 +171,7 @@
             </div>
             <div class="stat-card__info">
               <div class="stat-card__value" id="detailDuration">00:00</div>
-              <div class="stat-card__label">Süre</div>
+              <div class="stat-card__label">Duration</div>
             </div>
           </div>
           <div class="stat-card stat-card--actions">
@@ -181,14 +181,14 @@
                 <path d="M6 4L2 7L6 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M2 7H9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
-              Ayrıl
+              Leave
             </button>
             <button class="btn btn--primary btn--sm" id="detailSummarizeBtn">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M3 2H11C11.5523 2 12 2.44772 12 3V11C12 11.5523 11.5523 12 11 12H3C2.44772 12 2 11.5523 2 11V3C2 2.44772 2.44772 2 3 2Z" stroke="currentColor" stroke-width="1.5"/>
                 <path d="M5 5.5H9M5 8.5H7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
-              AI Özet
+              AI Summary
             </button>
           </div>
         </div>
@@ -206,20 +206,20 @@
               <rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
               <path d="M5 5H9M5 7H8M5 9H7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
             </svg>
-            Özet
+            Summary
           </button>
           <button class="tab" data-tab="language" id="tabLanguage">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/>
               <path d="M1.5 7H12.5M7 1.5C5.5 3.5 5.5 10.5 7 12.5M7 1.5C8.5 3.5 8.5 10.5 7 12.5" stroke="currentColor" stroke-width="1.2"/>
             </svg>
-            Dil
+            Language
           </button>
         </div>
 
         <!-- Tab Content: Transcript -->
         <div class="tab-content" id="tabContentTranscript">
-          <div class="transcript-feed" id="transcriptFeed" role="log" aria-label="Canlı transkript">
+          <div class="transcript-feed" id="transcriptFeed" role="log" aria-label="Live transcript">
             <div class="feed-empty" id="feedEmpty">
               <div class="feed-empty__icon">
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -227,7 +227,7 @@
                   <path d="M10 15H16M10 19H22" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
               </div>
-              <span>Konuşma bekleniyor…</span>
+              <span>Waiting for speech…</span>
             </div>
           </div>
         </div>
@@ -241,7 +241,7 @@
                 <path d="M10 10H22M10 15H18M10 20H20" stroke="var(--gray-300)" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
             </div>
-            <span>Özet oluşturmak için "AI Özet" butonuna tıklayın</span>
+            <span>Click the "AI Summary" button to generate a summary</span>
           </div>
           <div class="summary-content hidden" id="summaryContent"></div>
         </div>
@@ -251,7 +251,7 @@
           <div class="language-panel">
             <div class="language-panel__header">
               <div class="language-panel__current">
-                <span class="language-panel__label">Aktif Dil</span>
+                <span class="language-panel__label">Aktif Language</span>
                 <span class="language-panel__value" id="currentLanguage">—</span>
               </div>
               <button class="btn btn--outline btn--sm" id="fetchLanguagesBtn">
@@ -260,7 +260,7 @@
                   <path d="M11 2V5H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                   <path d="M3 12V9H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                Dilleri Yükle
+                Load Languages
               </button>
             </div>
             <div class="language-panel__search hidden" id="langSearchWrap">
@@ -268,9 +268,9 @@
                 <circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.5"/>
                 <path d="M10 10L13 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
-              <input type="text" id="langSearch" class="language-panel__search-input" placeholder="Dil ara…" spellcheck="false" autocomplete="off" />
+              <input type="text" id="langSearch" class="language-panel__search-input" placeholder="Language ara…" spellcheck="false" autocomplete="off" />
             </div>
-            <div class="language-panel__list hidden" id="langList" role="listbox" aria-label="Dil seçenekleri"></div>
+            <div class="language-panel__list hidden" id="langList" role="listbox" aria-label="Language options"></div>
           </div>
         </div>
       </div>
@@ -281,8 +281,8 @@
   <div class="modal-overlay hidden" id="modalOverlay">
     <div class="modal" id="newMeetingModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal__header">
-        <h3 class="modal__title" id="modalTitle">Yeni Toplantıya Katıl</h3>
-        <button class="btn btn--ghost btn--icon" id="modalClose" aria-label="Kapat">
+        <h3 class="modal__title" id="modalTitle">New Meetingya Join</h3>
+        <button class="btn btn--ghost btn--icon" id="modalClose" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           </svg>
@@ -290,7 +290,7 @@
       </div>
       <form id="joinForm" autocomplete="off">
         <div class="form-group">
-          <label for="meetLink" class="form-label">Google Meet Linki</label>
+          <label for="meetLink" class="form-label">Google Meet Link</label>
           <div class="form-input-wrap">
             <svg class="form-input-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M6.5 8.5C7.16 9.35 8.12 9.9 9.19 9.97C10.27 10.04 11.29 9.62 12 8.84L13.5 7.34C14.84 6 14.84 3.84 13.5 2.5C12.16 1.16 10 1.16 8.66 2.5L7.58 3.58" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -307,15 +307,15 @@
             />
           </div>
           <div class="form-error hidden" id="joinError" role="alert"></div>
-          <p class="form-hint">Örnek: https://meet.google.com/abc-defg-hij</p>
+          <p class="form-hint">Example: https://meet.google.com/abc-defg-hij</p>
         </div>
         <div class="modal__footer">
-          <button type="button" class="btn btn--ghost" id="modalCancelBtn">İptal</button>
+          <button type="button" class="btn btn--ghost" id="modalCancelBtn">Cancel</button>
           <button type="submit" class="btn btn--primary" id="joinBtn">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M3 13L13 3M13 3H5M13 3V11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            Katıl
+            Join
           </button>
         </div>
       </form>

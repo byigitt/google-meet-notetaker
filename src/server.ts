@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────
 
-import express from 'express';
-import { createServer } from 'http';
+import express, { type Express } from 'express';
+import { createServer, type Server as HttpServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import path from 'path';
 import { AppConfig } from './config';
@@ -10,7 +10,7 @@ import { createTranscriber } from './transcription/transcriber-factory';
 import { Summarizer } from './ai/summarizer';
 import { MeetingResult } from './types';
 
-export function createApp(config: AppConfig) {
+export function createApp(config: AppConfig): { app: Express; http: HttpServer; io: SocketIO } {
   const app = express();
   const http = createServer(app);
   const io = new SocketIO(http);
@@ -20,20 +20,20 @@ export function createApp(config: AppConfig) {
 
   const summarizer = new Summarizer(config.openaiApiKey);
 
-  // Aktif bot oturumları
+  // Active bot sessions
   const activeBots = new Map<string, MeetBot>();
-  // Tamamlanan toplantı sonuçları
+  // Completed meeting results
   const completedMeetings: MeetingResult[] = [];
 
-  // ── API: Toplantıya katıl ──
+  // ── API: Join meeting ──
 
   app.post('/api/join', async (req, res) => {
     const { meetLink } = req.body;
 
     if (!meetLink?.includes('meet.google.com/')) {
-      return res.status(400).json({ error: 'Geçerli bir Google Meet linki girin (ör: https://meet.google.com/xxx-xxxx-xxx)' });
+      return res.status(400).json({ error: 'Enter a valid Google Meet link (example: https://meet.google.com/xxx-xxxx-xxx)' });
     }
-    console.log(`📥 Yeni katılma isteği: ${meetLink}`);
+    console.log(`📥 New join request: ${meetLink}`);
 
     try {
       const transcriber = createTranscriber(config.transcriptionStrategy, {
@@ -45,7 +45,7 @@ export function createApp(config: AppConfig) {
       const bot = new MeetBot(meetLink, config.botName, config.captionLanguage, transcriber);
       activeBots.set(bot.session.id, bot);
 
-      // Event'leri WebSocket'e yay
+      // Publish events to WebSocket
       bot.on('status', (status) => {
         io.emit('status', { sessionId: bot.session.id, status });
       });
@@ -68,16 +68,16 @@ export function createApp(config: AppConfig) {
         io.emit('ended', { sessionId: bot.session.id });
       });
 
-      // Async olarak katıl (hemen response dön)
+      // Join asynchronously (return the response immediately)
       bot.join().catch(err => {
-        console.error(`❌ [${bot.session.id}] Bot hatası:`, err.message);
+        console.error(`❌ [${bot.session.id}] Bot error:`, err.message);
         io.emit('error', { sessionId: bot.session.id, message: err.message });
       });
 
       res.json({
         sessionId: bot.session.id,
         status: 'joining',
-        message: 'Bot toplantıya katılıyor...',
+        message: 'Bot is joining the meeting...',
       });
 
     } catch (err: any) {
@@ -85,17 +85,17 @@ export function createApp(config: AppConfig) {
     }
   });
 
-  // ── API: Toplantıdan ayrıl ──
+  // ── API: Leave meeting ──
 
   app.post('/api/leave/:sessionId', async (req, res) => {
     const bot = activeBots.get(req.params.sessionId);
-    if (!bot) return res.status(404).json({ error: 'Oturum bulunamadı' });
+    if (!bot) return res.status(404).json({ error: 'Session not found' });
 
     await bot.leave();
-    res.json({ message: 'Toplantıdan ayrılındı' });
+    res.json({ message: 'Left the meeting' });
   });
 
-  // ── API: Toplantı durumu ──
+  // ── API: Meeting status ──
 
   app.get('/api/status/:sessionId', (req, res) => {
     const bot = activeBots.get(req.params.sessionId);
@@ -113,22 +113,22 @@ export function createApp(config: AppConfig) {
     const completed = completedMeetings.find(m => m.id === req.params.sessionId);
     if (completed) return res.json(completed);
 
-    res.status(404).json({ error: 'Oturum bulunamadı' });
+    res.status(404).json({ error: 'Session not found' });
   });
 
-  // ── API: Transkript al ──
+  // ── API: Get transcript ──
 
   app.get('/api/transcript/:sessionId', (req, res) => {
     const result = findSession(req.params.sessionId);
-    if (!result) return res.status(404).json({ error: 'Oturum bulunamadı' });
+    if (!result) return res.status(404).json({ error: 'Session not found' });
     res.json({ transcript: result.transcript });
   });
 
-  // ── API: Özet oluştur ──
+  // ── API: Generate summary ──
 
   app.post('/api/summarize/:sessionId', async (req, res) => {
     const result = findSession(req.params.sessionId);
-    if (!result) return res.status(404).json({ error: 'Oturum bulunamadı' });
+    if (!result) return res.status(404).json({ error: 'Session not found' });
 
     try {
       const bot = activeBots.get(req.params.sessionId);
@@ -142,15 +142,15 @@ export function createApp(config: AppConfig) {
 
       res.json(summary);
     } catch (err: any) {
-      res.status(500).json({ error: `Özet oluşturulamadı: ${err.message}` });
+      res.status(500).json({ error: `Could not generate summary: ${err.message}` });
     }
   });
 
-  // ── API: Mevcut dilleri listele ──
+  // ── API: List available languages ──
 
   app.get('/api/languages/:sessionId', async (req, res) => {
     const bot = activeBots.get(req.params.sessionId);
-    if (!bot) return res.status(404).json({ error: 'Oturum bulunamadı' });
+    if (!bot) return res.status(404).json({ error: 'Session not found' });
 
     try {
       const languages = await bot.getAvailableLanguages();
@@ -160,14 +160,14 @@ export function createApp(config: AppConfig) {
     }
   });
 
-  // ── API: Dil değiştir ──
+  // ── API: Change language ──
 
   app.post('/api/language/:sessionId', async (req, res) => {
     const bot = activeBots.get(req.params.sessionId);
-    if (!bot) return res.status(404).json({ error: 'Oturum bulunamadı' });
+    if (!bot) return res.status(404).json({ error: 'Session not found' });
 
     const { language } = req.body;
-    if (!language) return res.status(400).json({ error: 'Dil belirtilmedi' });
+    if (!language) return res.status(400).json({ error: 'Language was not provided' });
 
     try {
       const success = await bot.changeCaptionLanguage(language);
@@ -175,14 +175,14 @@ export function createApp(config: AppConfig) {
         io.emit('language-changed', { sessionId: req.params.sessionId, language });
         res.json({ success: true, language });
       } else {
-        res.status(400).json({ error: `"${language}" dili seçilemedi` });
+        res.status(400).json({ error: `"${language}" language could not be selected` });
       }
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // ── API: Tüm toplantılar ──
+  // ── API: All meetings ──
 
   app.get('/api/meetings', (_req, res) => {
     const active = [...activeBots.values()].map(b => ({
@@ -208,8 +208,8 @@ export function createApp(config: AppConfig) {
   // ── Socket.IO ──
 
   io.on('connection', (socket) => {
-    console.log('🔌 Client bağlandı');
-    socket.on('disconnect', () => console.log('🔌 Client ayrıldı'));
+    console.log('🔌 Client connected');
+    socket.on('disconnect', () => console.log('🔌 Client disconnected'));
   });
 
   return { app, http, io };

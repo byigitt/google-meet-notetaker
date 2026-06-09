@@ -29,7 +29,7 @@ const SEL = {
     '[aria-label="Join now"]', '[aria-label="Şimdi katıl"]',
   ],
   leave: [
-    '[aria-label*="Leave" i]', '[aria-label*="Ayrıl" i]',
+    '[aria-label*="Leave" i]', '[aria-label*="Leave" i]',
   ],
 } as const;
 
@@ -67,7 +67,7 @@ export class MeetNavigator {
         log(M, 'cookie dialog dismissed');
         await sleep(1000);
       }
-    } catch { /* dialog yoksa sorun değil */ }
+    } catch { /* no dialog is fine */ }
   }
 
   async enterName(name: string): Promise<void> {
@@ -113,18 +113,18 @@ export class MeetNavigator {
         const bodyText = await this.page.locator('body').innerText().catch(() => '');
         const lower = bodyText.toLowerCase();
 
-        // Reddedilme kontrolü
+        // Denial check
         if (REJECT_PATTERNS.some(p => lower.includes(p))) {
-          throw new Error('Toplantıya katılma isteği reddedildi');
+          throw new Error('Meeting join request was denied');
         }
 
-        // Hâlâ bekleme odasındaysa → henüz katılmamış
+        // Still in the waiting room → not admitted yet
         if (WAITING_PATTERNS.some(p => lower.includes(p))) {
           return false;
         }
 
-        // Leave butonu var VE bekleme metni yok → gerçekten toplantıdayız
-        for (const sel of [...SEL.leave]) {
+        // Leave button exists and there is no waiting text → actually in the meeting
+        for (const sel of SEL.leave) {
           try {
             if (await this.page.locator(sel).first().isVisible({ timeout: 300 })) {
               return true;
@@ -139,11 +139,11 @@ export class MeetNavigator {
     if (!joined) throw new Error('meeting admit timeout');
   }
 
-  // ── Popup dialog'ları kapat ──
+  // ── Dismiss popup dialogs ──
 
   async dismissPopups(): Promise<void> {
     try {
-      // Google Meet'in çeşitli bilgi popup'ları:
+      // Various Google Meet informational popups:
       // "Others may see your video differently" → "Got it"
       // "Use a phone for audio" → "Dismiss" / "Not now"
       // vs.
@@ -171,26 +171,26 @@ export class MeetNavigator {
         log(M, `popup dismissed: ${dismissed.join(', ')}`);
         await sleep(500);
       }
-    } catch { /* sorun değil */ }
+    } catch { /* fine */ }
   }
 
-  // ── Altyazıları aç + dil seç ──
+  // ── Enable captions and select language ──
 
   async enableCaptions(language?: string): Promise<void> {
     log(M, 'enabling captions...');
     await sleep(2000);
 
-    // Önce popup dialog'ları kapat
+    // Dismiss popup dialogs first
     await this.dismissPopups();
 
-    // Debug modunda alt toolbar butonlarını göster
+    // Show bottom toolbar buttons in debug mode
     if (NAV_DEBUG_ENABLED) {
       await this.debugBottomToolbar();
     }
 
     let opened = false;
 
-    // Yöntem 1: evaluate ile icon text'ten caption butonunu bul ve tıkla
+    // Method 1: use evaluate to find and click the caption button from icon text
     if (!opened) {
       try {
         const clicked = await this.page.evaluate(() => {
@@ -204,7 +204,7 @@ export class MeetNavigator {
                 return iconText;
               }
             }
-            // Bazı Meet versiyonlarında aria-label ile
+            // Some Meet versions expose it through aria-label
             const label = (btn.getAttribute('aria-label') || '').toLowerCase();
             if (
               (label.includes('caption') || label.includes('altyazı')) &&
@@ -221,10 +221,10 @@ export class MeetNavigator {
           opened = true;
           log(M, `captions button clicked via evaluate (${clicked})`);
         }
-      } catch { /* sonraki yöntemi dene */ }
+      } catch { /* try the next method */ }
     }
 
-    // Yöntem 2: aria-label tabanlı selector'lar
+    // Method 2: aria-label-based selectors
     if (!opened) {
       const ariaSelectors = [
         'button[aria-label*="Turn on captions" i]',
@@ -238,12 +238,12 @@ export class MeetNavigator {
       opened = await clickFirstMatch(this.page, ariaSelectors, 'captions-button');
     }
 
-    // Yöntem 3: "More options" menüsü üzerinden caption aç
+    // Method 3: enable captions through the "More options" menu
     if (!opened) {
       opened = await this.enableCaptionsThroughMoreOptions();
     }
 
-    // Yöntem 4: Klavye kısayolu 'c'
+    // Method 4: keyboard shortcut c
     if (!opened) {
       log(M, 'captions button not found, trying keyboard shortcut c...');
       await this.page.evaluate(() => {
@@ -257,7 +257,7 @@ export class MeetNavigator {
 
     await sleep(2000);
 
-    // Doğrulama
+    // Verification
     const verified = await this.verifyCaptionsEnabled();
     if (verified) {
       log(M, 'captions verified active');
@@ -273,17 +273,17 @@ export class MeetNavigator {
       }
     }
 
-    // Dil seçimi
+    // Language selection
     if (language) {
       await this.selectCaptionLanguage(language);
     }
   }
 
-  // ── Altyazıların açık olup olmadığını doğrula ──
+  // ── Verify captions are enabled ──
 
   private async verifyCaptionsEnabled(): Promise<boolean> {
     try {
-      // 1) "Turn off captions" veya "Altyazıları kapat" butonu var mı?
+      // 1) Does a localized "turn off captions" button exist?
       const offSelectors = [
         'button[aria-label*="Turn off captions" i]',
         'button[aria-label*="Altyazıları kapat" i]',
@@ -294,14 +294,14 @@ export class MeetNavigator {
         } catch { continue; }
       }
 
-      // 2) evaluate: icon text'i "closed_caption" (açık) mı yoksa "closed_caption_off" (kapalı) mı?
+      // 2) evaluate: is the icon text "closed_caption" (on) or "closed_caption_off" (off)?
       const iconState = await this.page.evaluate(() => {
         const buttons = document.querySelectorAll('button');
         for (const btn of buttons) {
           const icons = btn.querySelectorAll('i, span.google-symbols, span.material-icons-extended');
           for (const icon of icons) {
             const t = icon.textContent?.trim() || '';
-            if (t === 'closed_caption') return 'on'; // icon "closed_caption" = captions açık
+            if (t === 'closed_caption') return 'on'; // icon "closed_caption" = captions on
             if (t === 'closed_caption_off') return 'off';
           }
         }
@@ -311,7 +311,7 @@ export class MeetNavigator {
       if (iconState === 'on') return true;
       if (iconState === 'off') return false;
 
-      // 3) Ekranın alt kısmında caption container var mı?
+      // 3) Is there a caption container near the bottom of the screen?
       return await this.page.evaluate(() => {
         const allDivs = document.querySelectorAll('div[jscontroller]');
         for (const div of allDivs) {
@@ -328,7 +328,7 @@ export class MeetNavigator {
     }
   }
 
-  // ── "More options" menüsünden caption aç ──
+  // ── Enable captions from the "More options" menu ──
 
   private async enableCaptionsThroughMoreOptions(): Promise<boolean> {
     try {
@@ -338,7 +338,7 @@ export class MeetNavigator {
       if (!moreClicked) return false;
       await sleep(1000);
 
-      // Menüde "captions" / "altyazı" öğesini bul ve tıkla
+      // Find and click the captions item in the menu (including localized labels)
       const captionKeywords = ['captions', 'caption', 'altyazı', 'subtitle', 'closed caption'];
       for (const kw of captionKeywords) {
         try {
@@ -353,7 +353,7 @@ export class MeetNavigator {
         } catch { continue; }
       }
 
-      // Menüyü kapat
+      // Close the menu
       await this.page.keyboard.press('Escape');
       return false;
     } catch {
@@ -361,46 +361,46 @@ export class MeetNavigator {
     }
   }
 
-  // ── Caption dil seçimi ──
+  // ── Caption language selection ──
 
   async selectCaptionLanguage(language: string): Promise<void> {
     log(M, `selecting caption language: "${language}"`);
 
-    // Yöntem 1 (Ana): More Options → direkt dil listesinden seç
-    // Google Meet'in güncel versiyonunda More Options açıldığında
-    // caption dil listesi (role="option") doğrudan gösteriliyor
+    // Method 1 (primary): More Options → select directly from language list
+    // In current Google Meet versions, when More Options is opened
+    // the caption language list (role="option") is shown directly
     const directPick = await this.selectLanguageViaMoreOptions(language);
     if (directPick) return;
 
-    // Yöntem 2: Caption alanında "Change language" linki
+    // Method 2: "Change language" link in the caption area
     const quickPick = await this.tryQuickLanguageChange(language);
     if (quickPick) return;
 
-    // Yöntem 3: Settings dialog üzerinden (eski Meet versiyonları)
+    // Method 3: through the Settings dialog (older Meet versions)
     const settingsPick = await this.changeLanguageThroughSettings(language);
     if (settingsPick) return;
 
     warn(M, `language "${language}" could not be set — using default`);
   }
 
-  // ── More Options → Direkt dil listesinden seçim (güncel Meet UI) ──
+  // ── More Options → direct selection from the language list (current Meet UI) ──
 
   private async selectLanguageViaMoreOptions(language: string): Promise<boolean> {
     try {
       log(M, 'trying language selection via more options...');
 
-      // "More options" butonunu tıkla
+      // Click the "More options" button
       const moreClicked = await this.clickMoreOptions();
       if (!moreClicked) return false;
 
       await sleep(1000);
 
-      // Direkt olarak dil listesinden (role="option") seç
-      // Google Meet'te "Turkish (Turkey)" şeklinde gösteriliyor
+      // Select directly from the language list (role="option")
+      // Google Meet displays values like "Turkish (Turkey)"
       const picked = await this.pickLanguageFromVisibleList(language);
       if (picked) return true;
 
-      // Bulamadıysa menüyü kapat
+      // Close the menu if not found
       await this.page.keyboard.press('Escape');
       return false;
     } catch {
@@ -409,7 +409,7 @@ export class MeetNavigator {
     }
   }
 
-  // ── Caption alanındaki hızlı dil değiştirme linki ──
+  // ── Quick language-change link in the caption area ──
 
   private async tryQuickLanguageChange(language: string): Promise<boolean> {
     try {
@@ -436,7 +436,7 @@ export class MeetNavigator {
     }
   }
 
-  // ── Settings dialog üzerinden dil değiştirme (eski Meet versiyonları) ──
+  // ── Change language through the Settings dialog (older Meet versions) ──
 
   private async changeLanguageThroughSettings(language: string): Promise<boolean> {
     try {
@@ -446,7 +446,7 @@ export class MeetNavigator {
       if (!moreClicked) return false;
       await sleep(1000);
 
-      // Menüde "Settings" / "Ayarlar" tıkla
+      // Click "Settings" / "Ayarlar" in the menu
       let settingsFound = false;
       for (const kw of ['Settings', 'Ayarlar', 'settings', 'ayarlar']) {
         try {
@@ -469,7 +469,7 @@ export class MeetNavigator {
 
       await sleep(1500);
 
-      // Settings dialog'unda "Captions" sekmesi
+      // "Captions" tab in the Settings dialog
       for (const kw of ['Captions', 'Altyazı', 'Altyazılar', 'Subtitles']) {
         try {
           const tab = this.page.locator('[role="tab"], [role="listitem"], nav a, nav button, div[role="button"]').filter({
@@ -484,12 +484,12 @@ export class MeetNavigator {
         } catch { continue; }
       }
 
-      // Dialog'da dil seç (select, listbox, dropdown)
+      // Select language in the dialog (select, listbox, dropdown)
       const langSelected = await this.selectLanguageInDialog(language);
 
-      // Dialog'u kapat
+      // Close the dialog
       await sleep(300);
-      const closeBtn = this.page.locator('button[aria-label="Close"], button[aria-label="Kapat"]').first();
+      const closeBtn = this.page.locator('button[aria-label="Close"], button[aria-label="Close"]').first();
       if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
         await closeBtn.click();
       } else {
@@ -504,7 +504,7 @@ export class MeetNavigator {
     }
   }
 
-  // ── Dialog'dan dil seçimi (select/dropdown) ──
+  // ── Language selection from dialog (select/dropdown) ──
 
   private async selectLanguageInDialog(language: string): Promise<boolean> {
     // 1) <select> elementi
@@ -536,14 +536,14 @@ export class MeetNavigator {
       }
     } catch { /* next */ }
 
-    // 3) Doğrudan visible list
+    // 3) Direct visible list
     return await this.pickLanguageFromVisibleList(language);
   }
 
-  // ── More Options butonunu tıkla (ortak helper) ──
+  // ── Click the More Options button (shared helper) ──
 
   private async clickMoreOptions(): Promise<boolean> {
-    // Tek yöntem: evaluate ile doğrudan tıkla (en güvenilir)
+    // Single method: click directly with evaluate (most reliable)
     const clicked = await this.page.evaluate(() => {
       const buttons = document.querySelectorAll('button');
       for (const btn of buttons) {
@@ -573,10 +573,10 @@ export class MeetNavigator {
     return false;
   }
 
-  // ── Görünür listeden dil seçimi (ortak helper) ──
+  // ── Language selection from the visible list (shared helper) ──
 
   private async pickLanguageFromVisibleList(language: string): Promise<boolean> {
-    // En güvenilir yöntem: evaluate ile DOM'da bul ve tıkla
+    // Most reliable method: find and click in the DOM with evaluate
     const clicked = await this.page.evaluate((lang: string) => {
       const lower = lang.toLowerCase();
       const selectors = ['[role="option"]', '[role="menuitemradio"]', '[role="menuitem"]'];
@@ -586,7 +586,7 @@ export class MeetNavigator {
         for (const item of items) {
           const text = item.textContent?.trim() || '';
           if (text.toLowerCase().includes(lower)) {
-            // Scroll into view ve tıkla
+            // Scroll into view and click
             item.scrollIntoView({ block: 'center' });
             (item as HTMLElement).click();
             return text;
@@ -604,7 +604,7 @@ export class MeetNavigator {
     return false;
   }
 
-  // ── Mevcut dilleri çek (More Options panelinden) ──
+  // ── Fetch available languages from the More Options panel ──
 
   async getAvailableLanguages(): Promise<string[]> {
     try {
@@ -636,7 +636,7 @@ export class MeetNavigator {
     }
   }
 
-  // ── Anlık dil değiştirme (web UI'dan çağrılır) ──
+  // ── Live language change (called from the web UI) ──
 
   async changeCaptionLanguage(language: string): Promise<boolean> {
     log(M, `changing caption language to: "${language}"`);
@@ -693,7 +693,7 @@ export class MeetNavigator {
         const relevant: any[] = [];
         for (const btn of buttons) {
           const rect = btn.getBoundingClientRect();
-          // Alt toolbar genellikle ekranın alt %30'unda
+          // The bottom toolbar is usually in the lower 30% of the screen
           if (rect.top < window.innerHeight * 0.6) continue;
 
           const iconEl = btn.querySelector('i, span.google-symbols, span.material-icons-extended');

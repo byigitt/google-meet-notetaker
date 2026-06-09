@@ -122,7 +122,7 @@ function mergeConfig(base: AppConfig, opts: CliOptions): AppConfig {
 
 function formatTranscriptLines(entries: MeetingResult['transcript']): string {
   return entries
-    .map(e => `[${new Date(e.startTime).toLocaleTimeString('tr-TR')}] ${e.speaker}: ${e.text}`)
+    .map(e => `[${new Date(e.startTime).toLocaleTimeString('en-US')}] ${e.speaker}: ${e.text}`)
     .join('\n');
 }
 
@@ -159,13 +159,13 @@ async function saveArtifacts(dir: string, result: MeetingResult, summary?: Meeti
 
   await fs.mkdir(dir, { recursive: true });
 
-  // Kaynak bazlı transcript ayrımı
+  // Split transcripts by source
   const captionEntries = result.transcript.filter(e => e.source !== 'whisper');
   const whisperEntries = result.transcript.filter(e => e.source === 'whisper');
   const hasDual = captionEntries.length > 0 && whisperEntries.length > 0;
 
   if (hasDual) {
-    // İki ayrı dosya
+    // Two separate files
     const cPath = path.join(dir, `${base}-transcript-captions.txt`);
     await fs.writeFile(cPath, formatTranscriptLines(captionEntries), 'utf-8');
     log(M, `captions transcript saved: ${cPath}`);
@@ -217,7 +217,7 @@ async function main(): Promise<void> {
 
   if (opts.help) { printHelp(); return; }
 
-  // Debug modu env'e yaz (logger + transcribers bu değişkeni okur)
+  // Write debug mode to env (logger and transcribers read this variable)
   process.env.CLI_DEBUG = opts.debug ? '1' : '0';
 
   const baseConfig = loadConfig();
@@ -286,13 +286,18 @@ async function main(): Promise<void> {
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: '> ' });
 
-  // printLive: caption/status geldiğinde mevcut prompt satırını temizleyip yeniden çiz
+  // printLive: clear and redraw the current prompt line when caption/status events arrive
   const printLive = (msg: string, level: 'log' | 'err' = 'log') => {
-    if (ended) { level === 'err' ? console.error(msg) : console.log(msg); return; }
+    if (ended) {
+      if (level === 'err') console.error(msg);
+      else console.log(msg);
+      return;
+    }
 
     readline.clearLine(process.stdout, 0);
     readline.cursorTo(process.stdout, 0);
-    level === 'err' ? console.error(msg) : console.log(msg);
+    if (level === 'err') console.error(msg);
+    else console.log(msg);
     rl.prompt(true);
   };
 
@@ -303,7 +308,7 @@ async function main(): Promise<void> {
   });
 
   bot.on('caption', entry => {
-    const time = new Date(entry.startTime).toLocaleTimeString('tr-TR');
+    const time = new Date(entry.startTime).toLocaleTimeString('en-US');
     if (entry.source === 'whisper') {
       printLive(`[WHISPER][${time}] ${entry.text}`);
     } else {

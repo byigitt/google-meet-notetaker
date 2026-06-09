@@ -1088,7 +1088,7 @@ body {
 }
 
 .modal__header .btn--icon {
-  margin-right: -4px; /* optik dengeleme: X butonu sağ kenara daha yakın dursun */
+  margin-right: -4px; /* optical adjustment: keep the X button closer to the right edge */
 }
 
 .modal__title {

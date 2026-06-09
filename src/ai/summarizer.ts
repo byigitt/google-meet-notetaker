@@ -4,23 +4,23 @@ import { log, warn } from '../logger';
 
 const M = 'summarizer';
 
-const SYSTEM_PROMPT = `Sen bir toplantı asistanısın. Sana bir toplantının transkriptini vereceğim.
-Aşağıdaki formatta bir JSON döndür (başka hiçbir şey yazma):
+const SYSTEM_PROMPT = `You are a meeting assistant. I will give you a meeting transcript.
+Return a JSON object in exactly this format and do not write anything else:
 {
-  "title": "Toplantı başlığı (içerikten çıkar)",
-  "summary": "Toplantının genel özeti (2-3 paragraf, Türkçe)",
-  "keyPoints": ["Önemli nokta 1", "Önemli nokta 2", ...],
-  "actionItems": ["Yapılacak iş 1 (varsa sorumlısıyla)", ...],
-  "decisions": ["Alınan karar 1", ...]
+  "title": "Meeting title inferred from the content",
+  "summary": "Overall meeting summary (2-3 paragraphs, English)",
+  "keyPoints": ["Important point 1", "Important point 2", ...],
+  "actionItems": ["Action item 1, with owner if available", ...],
+  "decisions": ["Decision 1", ...]
 }
-Kurallar:
-- Türkçe yaz
-- Sadece JSON döndür, markdown veya açıklama ekleme
-- Transkriptte geçen gerçek bilgileri kullan, uydurma`;
+Rules:
+- Write in English
+- Return JSON only; do not include markdown or explanations
+- Use only real information from the transcript; do not invent details`;
 
 function formatEntries(entries: TranscriptEntry[]): string {
   return entries
-    .map(e => `[${e.startTime.toLocaleTimeString('tr-TR')}] ${e.speaker}: ${e.text}`)
+    .map(e => `[${e.startTime.toLocaleTimeString('en-US')}] ${e.speaker}: ${e.text}`)
     .join('\n');
 }
 
@@ -30,9 +30,9 @@ function makeSummary(
   duration?: string,
 ): MeetingSummary {
   return {
-    title:       parsed.title ?? 'Toplantı',
-    date:        new Date().toLocaleDateString('tr-TR'),
-    duration:    duration ?? 'Bilinmiyor',
+    title:       parsed.title ?? 'Meeting',
+    date:        new Date().toLocaleDateString('en-US'),
+    duration:    duration ?? 'Unknown',
     participants,
     summary:     parsed.summary ?? '',
     keyPoints:   parsed.keyPoints ?? [],
@@ -55,17 +55,17 @@ export class Summarizer {
   ): Promise<MeetingSummary> {
     if (transcript.length === 0) {
       return makeSummary(
-        { summary: 'Transkript bulunamadı. Toplantıda altyazılar açık olmayabilir.' },
+        { summary: 'No transcript was found. Captions may not have been enabled in the meeting.' },
         participants,
         duration,
       );
     }
 
     const userPrompt = [
-      `Katılımcılar: ${participants.join(', ')}`,
-      duration ? `Süre: ${duration}` : '',
+      `Participants: ${participants.join(', ')}`,
+      duration ? `Duration: ${duration}` : '',
       '',
-      '--- TRANSKRİPT ---',
+      '--- TRANSCRIPT ---',
       formatEntries(transcript),
     ].filter(Boolean).join('\n');
 
